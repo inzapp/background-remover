@@ -88,11 +88,11 @@ class AdversarialAutoEncoder:
     def train(self):
         iteration_count = 0
         half_batch_size = self.batch_size // 2
+        ae_loss, discriminator_loss, aae_loss = 0.0, 0.0, 0.0
         while True:
             self.train_data_generator.shuffle()
             for ae_x, ae_y in self.train_data_generator:
                 iteration_count += 1
-                self.ae.trainable = True
                 ae_loss = self.ae.train_on_batch(ae_x, ae_y, return_dict=True)['loss']
                 half_ae_x = ae_x[:half_batch_size]
                 half_ae_y = self.ae.predict_on_batch(half_ae_x)
@@ -102,10 +102,11 @@ class AdversarialAutoEncoder:
                 np.random.shuffle(r)
                 discriminator_x = discriminator_x[r]
                 discriminator_y = discriminator_y[r]
+                self.discriminator.trainable = True
                 discriminator_loss = self.discriminator.train_on_batch(discriminator_x, discriminator_y, return_dict=True)['loss']
                 aae_x = discriminator_x
                 aae_y = np.ones(shape=(self.batch_size, 1), dtype=np.float32)
-                self.ae.trainable = False
+                self.discriminator.trainable = False
                 aae_loss = self.aae.train_on_batch(aae_x, aae_y, return_dict=True)['loss']
                 print(f'\r[iteration count : {iteration_count:6d}] ae loss => {ae_loss:.4f}, discriminator loss => {discriminator_loss:.4f}, aae loss => {aae_loss:.4f}', end='\t')
                 if self.training_view:
