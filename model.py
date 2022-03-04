@@ -39,14 +39,17 @@ class Model:
         self.ae = tf.keras.models.Sequential([
             self.ae_body,
             self.transformer()])
-        self.ae.compile(optimizer=tf.keras.optimizers.Adam(lr=lr, beta_1=momentum), loss=self.loss)
+        self.ae_body.build((None,) + self.ae_body.input_shape[1:])
+        self.ae.compile(optimizer=tf.keras.optimizers.Adam(lr=self.lr, beta_1=self.momentum), loss=self.loss)
         self.discriminator = tf.keras.models.load_model(discriminator_path, compile=False)
-        self.discriminator.compile(optimizer=tf.keras.optimizers.Adam(lr=lr, beta_1=momentum), loss=self.loss)
-        self.ae.trainable = False
+        self.discriminator.compile(optimizer=tf.keras.optimizers.Adam(lr=self.lr, beta_1=self.momentum), loss=self.loss)
+        self.discriminator.trainable = False
         self.aae = tf.keras.models.Sequential([
             self.ae,
             self.discriminator])
-        self.aae.compile(optimizer=tf.keras.optimizers.Adam(lr=lr, beta_1=momentum), loss=self.loss)
+        self.aae.build((None,) + self.ae_body.input_shape[1:])
+        self.aae.compile(optimizer=tf.keras.optimizers.Adam(lr=self.lr, beta_1=self.momentum), loss=self.loss)
+        self.discriminator.trainable = True
         return self.ae, self.discriminator, self.aae
 
     def build(self):
