@@ -136,6 +136,8 @@ class AdversarialAutoEncoder:
         img = self.resize(img, (self.input_shape[1], self.input_shape[0]))
         x = np.asarray(img).reshape((1,) + self.ae.input_shape[1:]).astype('float32') / 255.0
         y = self.ae.predict_on_batch(x=x)
+        discriminate_val = self.discriminator.predict_on_batch(x=x)[0][0]
+        print(f'discriminate val : {discriminate_val:.4f}')
         y = np.asarray(y).reshape(self.ae.input_shape[1:]) * 255.0
         output_img = np.clip(y, 0.0, 255.0).astype('uint8')
         return output_img
@@ -151,6 +153,8 @@ class AdversarialAutoEncoder:
             for path in image_paths:
                 img = cv2.imread(path, cv2.IMREAD_GRAYSCALE if self.input_shape[-1] == 1 else cv2.IMREAD_COLOR)
                 output_image = self.predict(img)
+                img = self.resize(img, (self.input_shape[1], self.input_shape[0]))
+                img = np.asarray(img).reshape(img.shape + (self.input_shape[-1],))
                 cv2.imshow('ae', np.concatenate((img, output_image), axis=1))
                 key = cv2.waitKey(0)
                 if key == 27:
