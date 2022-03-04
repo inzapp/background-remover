@@ -43,13 +43,17 @@ class AdversarialAutoEncoder:
                  checkpoint_path='checkpoints',
                  training_view=False,
                  pretrained_ae_path='',
-                 pretrained_discriminator_path=''):
+                 pretrained_discriminator_path='',
+                 denoise=False,
+                 vertical_shake_power=0,
+                 horizontal_shake_power=0):
         self.iterations = iterations
         self.training_view = training_view
         self.live_view_previous_time = time()
         self.input_shape = input_shape
         self.batch_size = batch_size
         self.checkpoint_path = checkpoint_path
+        self.denoise = denoise
 
         self.model = Model(input_shape=input_shape, lr=lr, momentum=momentum, encoding_dim=encoding_dim)
         if self.exists(pretrained_ae_path) and self.exists(pretrained_discriminator_path):
@@ -69,11 +73,17 @@ class AdversarialAutoEncoder:
         self.train_data_generator = AAEDataGenerator(
             image_paths=self.train_image_paths,
             input_shape=input_shape,
-            batch_size=batch_size)
+            batch_size=batch_size,
+            vertical_shake_power=vertical_shake_power,
+            horizontal_shake_power=horizontal_shake_power,
+            add_noise=denoise)
         self.validation_data_generator = AAEDataGenerator(
             image_paths=self.validation_image_paths,
             input_shape=input_shape,
-            batch_size=batch_size)
+            batch_size=batch_size,
+            vertical_shake_power=vertical_shake_power,
+            horizontal_shake_power=horizontal_shake_power,
+            add_noise=denoise)
 
     def exists(self, path):
         return os.path.exists(path) and os.path.isfile(path)
@@ -89,25 +99,41 @@ class AdversarialAutoEncoder:
         iteration_count = 0
         half_batch_size = self.batch_size // 2
         ae_loss, discriminator_loss, aae_loss = 0.0, 0.0, 0.0
+        
         while True:
             self.train_data_generator.shuffle()
             for ae_x, ae_y in self.train_data_generator:
                 iteration_count += 1
+                # ae_loss = self.ae.train_on_batch(ae_x, ae_y, return_dict=True)['loss']
+                # half_ae_x = ae_x[:half_batch_size]
+                # half_ae_y = self.ae.predict_on_batch(half_ae_x)
+                # discriminator_x = np.append(half_ae_x, half_ae_y, axis=0)
+                # discriminator_y = np.append(np.ones(shape=(half_batch_size, 1)), np.zeros(shape=(half_batch_size, 1)), axis=0).astype('float32')
+                # r = np.arange(self.batch_size)
+                # np.random.shuffle(r)
+                # discriminator_x = discriminator_x[r]
+                # discriminator_y = discriminator_y[r]
+                # self.discriminator.trainable = True
+                # discriminator_loss = self.discriminator.train_on_batch(discriminator_x, discriminator_y, return_dict=True)['loss']
+                # aae_x = discriminator_x
+                # aae_y = np.ones(shape=(self.batch_size, 1), dtype=np.float32)
+                # self.discriminator.trainable = False
+                # aae_loss = self.aae.train_on_batch(aae_x, aae_y, return_dict=True)['loss']
+
                 ae_loss = self.ae.train_on_batch(ae_x, ae_y, return_dict=True)['loss']
-                half_ae_x = ae_x[:half_batch_size]
-                half_ae_y = self.ae.predict_on_batch(half_ae_x)
-                discriminator_x = np.append(half_ae_x, half_ae_y, axis=0)
-                discriminator_y = np.append(np.ones(shape=(half_batch_size, 1)), np.zeros(shape=(half_batch_size, 1)), axis=0).astype('float32')
-                r = np.arange(self.batch_size)
-                np.random.shuffle(r)
-                discriminator_x = discriminator_x[r]
-                discriminator_y = discriminator_y[r]
-                self.discriminator.trainable = True
-                discriminator_loss = self.discriminator.train_on_batch(discriminator_x, discriminator_y, return_dict=True)['loss']
-                aae_x = discriminator_x
-                aae_y = np.ones(shape=(self.batch_size, 1), dtype=np.float32)
-                self.discriminator.trainable = False
-                aae_loss = self.aae.train_on_batch(aae_x, aae_y, return_dict=True)['loss']
+                # ae_y = self.ae.predict_on_batch(ae_x)
+                # discriminator_x = ae_x
+                # discriminator_y = 1.0 - np.mean(np.abs(ae_x - ae_y).reshape((self.batch_size, -1)), axis=-1)
+                # r = np.arange(self.batch_size)
+                # np.random.shuffle(r)
+                # discriminator_x = discriminator_x[r]
+                # discriminator_y = discriminator_y[r]
+                # self.discriminator.trainable = True
+                # discriminator_loss = self.discriminator.train_on_batch(discriminator_x, discriminator_y, return_dict=True)['loss']
+                # aae_x = ae_x
+                # aae_y = np.ones(shape=(self.batch_size, 1), dtype=np.float32)
+                # self.discriminator.trainable = False
+                # aae_loss = self.aae.train_on_batch(aae_x, aae_y, return_dict=True)['loss']
                 print(f'\r[iteration count : {iteration_count:6d}] ae loss => {ae_loss:.4f}, discriminator loss => {discriminator_loss:.4f}, aae loss => {aae_loss:.4f}', end='\t')
                 if self.training_view:
                     self.training_view_function()
@@ -134,13 +160,15 @@ class AdversarialAutoEncoder:
 
     def predict(self, img):
         img = self.resize(img, (self.input_shape[1], self.input_shape[0]))
+        if self.denoise:
+            img = self.train_data_generator.random_adjust(img)
         x = np.asarray(img).reshape((1,) + self.ae.input_shape[1:]).astype('float32') / 255.0
         y = self.ae.predict_on_batch(x=x)
         discriminate_val = self.discriminator.predict_on_batch(x=x)[0][0]
         print(f'discriminate val : {discriminate_val:.4f}')
         y = np.asarray(y).reshape(self.ae.input_shape[1:]) * 255.0
         output_img = np.clip(y, 0.0, 255.0).astype('uint8')
-        return output_img
+        return img, output_img
 
     def predict_images(self, image_paths):
         """
@@ -152,7 +180,7 @@ class AdversarialAutoEncoder:
         with tf.device('/cpu:0'):
             for path in image_paths:
                 img = cv2.imread(path, cv2.IMREAD_GRAYSCALE if self.input_shape[-1] == 1 else cv2.IMREAD_COLOR)
-                output_image = self.predict(img)
+                img, output_image = self.predict(img)
                 img = self.resize(img, (self.input_shape[1], self.input_shape[0]))
                 img = np.asarray(img).reshape(img.shape + (self.input_shape[-1],))
                 cv2.imshow('ae', np.concatenate((img, output_image), axis=1))
@@ -179,7 +207,7 @@ class AdversarialAutoEncoder:
                 img_path = random.choice(self.validation_image_paths)
             input_shape = self.ae.input_shape[1:]
             img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE if input_shape[-1] == 1 else cv2.IMREAD_COLOR)
-            output_image = self.predict(img)
+            img, output_image = self.predict(img)
             img = self.resize(img, (input_shape[1], input_shape[0]))
             cv2.imshow('ae', np.concatenate((img.reshape(input_shape), output_image), axis=1))
             cv2.waitKey(1)

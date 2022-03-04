@@ -28,4 +28,7 @@ if __name__ == '__main__':
         momentum=0.9,
         batch_size=32,
         iterations=10000,
-        training_view=True).fit()
+        training_view=True,
+        vertical_shake_power=21,
+        horizontal_shake_power=21,
+        denoise=True).fit()
