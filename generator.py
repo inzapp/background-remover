@@ -32,9 +32,9 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
                 img = self.random_adjust(img)
             x = np.asarray(img).reshape(self.input_shape)
             batch_x.append(x)
-            batch_y.append(x)
+            batch_y.append(x.reshape(-1))
         batch_x = np.asarray(batch_x).reshape((self.batch_size,) + self.input_shape).astype('float32') / 255.0
-        batch_y = np.asarray(batch_y).reshape((self.batch_size,) + self.input_shape).astype('float32') / 255.0
+        batch_y = np.asarray(batch_y).reshape((self.batch_size, int(np.prod(self.input_shape)))).astype('float32') / 255.0
         return batch_x, batch_y
 
     def __len__(self):
@@ -50,8 +50,7 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
         if np.random.uniform() > 0.5:
             return img
 
-        # adjust_opts = ['contrast', 'noise', 'motion_blur', 'loss']
-        adjust_opts = ['motion_blur']
+        adjust_opts = ['contrast', 'motion_blur', 'noise', 'loss']
         # shuffle(adjust_opts)
         for i in range(len(adjust_opts)):
             img = self.adjust(img, adjust_opts[i])
