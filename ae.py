@@ -42,7 +42,7 @@ class AutoEncoder:
                  validation_image_path='',
                  checkpoint_path='checkpoints',
                  training_view=False,
-                 pretrained_ae_path='',
+                 pretrained_model_path='',
                  denoise=False,
                  vertical_shake_power=0,
                  horizontal_shake_power=0):
@@ -56,9 +56,10 @@ class AutoEncoder:
         self.view_flag = 1
 
         self.model = Model(input_shape=input_shape, lr=lr, momentum=momentum, encoding_dim=encoding_dim)
-        if os.path.exists(pretrained_ae_path) and os.path.isfile(pretrained_ae_path):
-            print(f'\npretrained ae path : {[pretrained_ae_path]}')
-            self.ae = self.model.load(pretrained_ae_path)
+        if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
+            print(f'\npretrained model path : {[pretrained_model_path]}')
+            self.ae, self.input_shape, self.encoding_dim = self.model.load(pretrained_model_path)
+            self.model = Model(input_shape=input_shape, lr=lr, momentum=momentum, encoding_dim=encoding_dim)
         else:
             self.ae = self.model.build()
 
@@ -83,6 +84,14 @@ class AutoEncoder:
             vertical_shake_power=vertical_shake_power,
             horizontal_shake_power=horizontal_shake_power,
             add_noise=denoise)
+
+    def get_encoding_dim(self, ae):
+        for layer in ae.layers:
+            print(layer)
+            if layer.name == 'encoder_output':
+                print(layer)
+                pass
+        return None
 
     def fit(self):
         self.model.summary()
@@ -143,7 +152,7 @@ class AutoEncoder:
                 img = cv2.imread(path, cv2.IMREAD_GRAYSCALE if self.input_shape[-1] == 1 else cv2.IMREAD_COLOR)
                 img, output_image = self.predict(img)
                 img = self.resize(img, (self.input_shape[1], self.input_shape[0]))
-                img = np.asarray(img).reshape(img.shape + (self.input_shape[-1],))
+                img = np.asarray(img).reshape(img.shape[:2] + (self.input_shape[-1],))
                 cv2.imshow('ae', np.concatenate((img, output_image), axis=1))
                 key = cv2.waitKey(0)
                 if key == 27:

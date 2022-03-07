@@ -35,9 +35,18 @@ class Model:
         self.ae = None
 
     def load(self, model_path):
-        self.ae = tf.keras.models.load_model(path, compile=False)
+        self.ae = tf.keras.models.load_model(model_path, compile=False)
         self.ae.compile(optimizer=tf.keras.optimizers.Adam(lr=self.lr, beta_1=self.momentum), loss=self.loss)
-        return self.ae
+        self.input_shape = self.ae.input_shape[1:]
+        self.encoding_dim = 0
+        for layer in self.ae.layers:
+            if layer.name == 'encoder_output':
+                self.encoding_dim = layer.units
+                break
+        if self.encoding_dim == 0:
+            print(f'encoding dim not found : [model_path]')
+            exit(0)
+        return self.ae, self.input_shape, self.encoding_dim
 
     def build(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
@@ -77,9 +86,7 @@ class Model:
         x = tf.keras.layers.GlobalAveragePooling2D()(x)
 
         x = tf.keras.layers.Dense(units=self.encoding_dim, kernel_initializer='he_uniform', activation='relu', activity_regularizer=tf.keras.regularizers.l1(l1=1e-4), name='encoder_output')(x)
-        # x = tf.keras.layers.Dropout(0.25)(x)
         x = tf.keras.layers.Dense(units=512, kernel_initializer='he_uniform', activation='relu')(x)
-        # x = tf.keras.layers.Dropout(0.25)(x)
         x = tf.keras.layers.Dense(units=int(np.prod(self.input_shape)), kernel_initializer='glorot_uniform', activation='sigmoid', name='decoder_output')(x)
         self.ae = tf.keras.models.Model(input_layer, x)
         self.ae.compile(optimizer=tf.keras.optimizers.Adam(lr=self.lr, beta_1=self.momentum), loss=self.loss)
