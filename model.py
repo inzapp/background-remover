@@ -44,7 +44,6 @@ class Model:
                 self.encoding_dim = layer.units
                 break
         if self.encoding_dim == 0:
-            print(f'encoding dim not found : [model_path]')
             exit(0)
         return self.ae, self.input_shape, self.encoding_dim
 
@@ -92,6 +91,26 @@ class Model:
         self.ae.compile(optimizer=tf.keras.optimizers.Adam(lr=self.lr, beta_1=self.momentum), loss=self.loss)
         self.ae.save('model.h5', include_optimizer=False)
         return self.ae
+
+    def extract_encoder(self):
+        encoder = tf.keras.models.Sequential()
+        for layer in self.ae.layers:
+            encoder.add(layer)
+            if layer.name == 'encoder_output':
+                break
+        return encoder
+
+    def extract_decoder(self):
+        flag = False
+        decoder = tf.keras.models.Sequential()
+        for layer in self.ae.layers:
+            if flag:
+                decoder.add(layer)
+                if layer.name == 'decoder_output':
+                    break
+            if layer.name == 'encoder_output':
+                flag = True
+        return decoder
 
     def loss(self, y_true, y_pred):
         return -K.log((1.0 + K.epsilon()) - K.abs(y_true - y_pred))

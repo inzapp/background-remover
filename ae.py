@@ -59,9 +59,12 @@ class AutoEncoder:
         if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
             print(f'\npretrained model path : {[pretrained_model_path]}')
             self.ae, self.input_shape, self.encoding_dim = self.model.load(pretrained_model_path)
-            self.model = Model(input_shape=input_shape, lr=lr, momentum=momentum, encoding_dim=encoding_dim)
+            print(f'input_shape : {self.input_shape}')
+            print(f'encoding_dim : {self.encoding_dim}')
         else:
             self.ae = self.model.build()
+        self.encoder = self.model.extract_encoder()
+        self.decoder = self.model.extract_decoder()
 
         if validation_image_path != '':
             self.train_image_paths, _ = self.init_image_paths(train_image_path)
@@ -130,15 +133,19 @@ class AutoEncoder:
         else:
             return cv2.resize(img, size, interpolation=cv2.INTER_LINEAR)
 
-    def predict(self, img):
+    def predict(self, img, print_z=False):
         img = self.resize(img, (self.input_shape[1], self.input_shape[0]))
         if self.denoise:
             img = self.train_data_generator.random_adjust(img)
-        x = np.asarray(img).reshape((1,) + self.ae.input_shape[1:]).astype('float32') / 255.0
-        y = self.ae.predict_on_batch(x=x)
-        y = np.asarray(y).reshape(self.ae.input_shape[1:]) * 255.0
-        output_img = np.clip(y, 0.0, 255.0).astype('uint8')
-        return img, output_img
+        x = np.asarray(img).reshape((1,) + self.input_shape).astype('float32') / 255.0
+        z = self.encoder.predict_on_batch(x=x).reshape(-1)
+        if print_z:
+            print(z)
+        z = z.reshape((1,) + z.shape)
+        y = self.decoder.predict_on_batch(x=z)
+        y = np.asarray(y).reshape(self.input_shape) * 255.0
+        decoded_img = np.clip(y, 0.0, 255.0).astype('uint8')
+        return img, decoded_img
 
     def predict_images(self, image_paths):
         """
@@ -150,7 +157,7 @@ class AutoEncoder:
         with tf.device('/cpu:0'):
             for path in image_paths:
                 img = cv2.imread(path, cv2.IMREAD_GRAYSCALE if self.input_shape[-1] == 1 else cv2.IMREAD_COLOR)
-                img, output_image = self.predict(img)
+                img, output_image = self.predict(img, print_z=True)
                 img = self.resize(img, (self.input_shape[1], self.input_shape[0]))
                 img = np.asarray(img).reshape(img.shape[:2] + (self.input_shape[-1],))
                 cv2.imshow('ae', np.concatenate((img, output_image), axis=1))
