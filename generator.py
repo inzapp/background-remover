@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
 import tensorflow as tf
-from random import shuffle
 from concurrent.futures.thread import ThreadPoolExecutor
 
 
@@ -13,21 +12,17 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
         self.add_noise = add_noise
         self.vertical_shake_power = vertical_shake_power
         self.horizontal_shake_power = horizontal_shake_power
-        self.random_indexes = np.arange(len(self.image_paths))
         self.pool = ThreadPoolExecutor(8)
-        np.random.shuffle(self.random_indexes)
+        self.img_index = 0
 
     def __getitem__(self, index):
         batch_x = []
         batch_y = []
-        start_index = index * self.batch_size
         fs = []
-        for i in range(start_index, start_index + self.batch_size):
-            cur_img_path = self.image_paths[self.random_indexes[i]]
-            fs.append(self.pool.submit(self.load_image, cur_img_path))
+        for _ in range(self.batch_size):
+            fs.append(self.pool.submit(self.load_image, self.next_image_path()))
         for f in fs:
-            img = f.result()
-            img = cv2.resize(img, (self.input_shape[1], self.input_shape[0]))
+            img = cv2.resize(f.result(), (self.input_shape[1], self.input_shape[0]))
             if self.add_noise:
                 img = self.random_adjust(img)
             x = np.asarray(img).reshape(self.input_shape)
@@ -37,21 +32,26 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
         batch_y = np.asarray(batch_y).reshape((self.batch_size, int(np.prod(self.input_shape)))).astype('float32') / 255.0
         return batch_x, batch_y
 
+    def next_image_path(self):
+        path = self.image_paths[self.img_index]
+        self.img_index += 1
+        if self.img_index == len(self.image_paths):
+            self.img_index = 0
+            np.random.shuffle(self.image_paths)
+        return path
+
     def __len__(self):
-        return int(np.floor(len(self.image_paths) / self.batch_size))
+        return self.batch_size
 
     def load_image(self, image_path):
         return cv2.imread(image_path, cv2.IMREAD_GRAYSCALE if self.input_shape[-1] == 1 else cv2.IMREAD_COLOR)
-
-    def shuffle(self):
-        np.random.shuffle(self.random_indexes)
 
     def random_adjust(self, img):
         if np.random.uniform() > 0.5:
             return img
 
         adjust_opts = ['contrast', 'motion_blur', 'noise', 'loss']
-        # shuffle(adjust_opts)
+        # np.random.shuffle(adjust_opts)
         for i in range(len(adjust_opts)):
             img = self.adjust(img, adjust_opts[i])
         return img

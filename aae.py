@@ -53,6 +53,7 @@ class AdversarialAutoEncoder:
         self.batch_size = batch_size
         self.checkpoint_path = checkpoint_path
         self.denoise = denoise
+        self.view_flag = 1
 
         self.model = Model(input_shape=input_shape, lr=lr, momentum=momentum, encoding_dim=encoding_dim)
         if os.path.exists(pretrained_ae_path) and os.path.isfile(pretrained_ae_path):
@@ -93,14 +94,13 @@ class AdversarialAutoEncoder:
     def train(self):
         iteration_count = 0
         while True:
-            self.train_data_generator.shuffle()
             for ae_x, ae_y in self.train_data_generator:
                 iteration_count += 1
                 loss = self.ae.train_on_batch(ae_x, ae_y, return_dict=True)['loss']
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='\t')
                 if self.training_view:
                     self.training_view_function()
-                if iteration_count % 1000 == 0:
+                if iteration_count % 20000 == 0:
                     self.model.save(self.checkpoint_path, iteration_count, loss)
                 if iteration_count == self.iterations:
                     print('\n\ntrain end successfully')
@@ -162,13 +162,17 @@ class AdversarialAutoEncoder:
         cur_time = time()
         if cur_time - self.live_view_previous_time > 0.5:
             self.live_view_previous_time = cur_time
-            if np.random.uniform() > 0.5:
+            if self.view_flag == 1:
                 img_path = random.choice(self.train_image_paths)
+                win_name = 'ae train data'
+                self.view_flag = 0
             else:
                 img_path = random.choice(self.validation_image_paths)
+                win_name = 'ae validation data'
+                self.view_flag = 1
             input_shape = self.ae.input_shape[1:]
             img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE if input_shape[-1] == 1 else cv2.IMREAD_COLOR)
             img, output_image = self.predict(img)
             img = self.resize(img, (input_shape[1], input_shape[0]))
-            cv2.imshow('ae', np.concatenate((img.reshape(input_shape), output_image), axis=1))
+            cv2.imshow(win_name, np.concatenate((img.reshape(input_shape), output_image), axis=1))
             cv2.waitKey(1)
