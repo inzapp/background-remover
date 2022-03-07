@@ -1,7 +1,7 @@
 """
 Authors : inzapp
 
-Github url : https://github.com/inzapp/aae
+Github url : https://github.com/inzapp/auto-encoder
 
 Copyright 2021 inzapp Authors. All Rights Reserved.
 

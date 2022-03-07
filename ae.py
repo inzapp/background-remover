@@ -29,7 +29,7 @@ from model import Model
 from time import time
 
 
-class AdversarialAutoEncoder:
+class AutoEncoder:
     def __init__(self,
                  train_image_path=None,
                  input_shape=(128, 128, 1),

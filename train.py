@@ -1,7 +1,7 @@
 """
 Authors : inzapp
 
-Github url : https://github.com/inzapp/aae
+Github url : https://github.com/inzapp/auto-encoder
 
 Copyright 2021 inzapp Authors. All Rights Reserved.
 
@@ -17,18 +17,19 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-from aae import AdversarialAutoEncoder
+from ae import AutoEncoder
 
 if __name__ == '__main__':
-    AdversarialAutoEncoder(
+    AutoEncoder(
         train_image_path=r'C:\inz\train_data\mnist\train',
         validation_image_path=r'C:\inz\train_data\mnist\train',
         input_shape=(64, 64, 1),
         lr=0.001,
         momentum=0.9,
         batch_size=32,
-        iterations=10000,
+        iterations=200000,
+        encoding_dim=32,
         training_view=True,
         vertical_shake_power=21,
         horizontal_shake_power=21,
-        denoise=True).fit()
+        denoise=False).fit()
