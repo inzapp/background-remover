@@ -112,7 +112,8 @@ class AutoEncoder:
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='\t')
                 if self.training_view:
                     self.training_view_function()
-                if iteration_count % 20000 == 0:
+                if iteration_count % 10000 == 0:
+                    loss = self.model.ae.evaluate(x=self.validation_data_generator)
                     self.model.save(self.checkpoint_path, iteration_count, loss)
                 if iteration_count == self.iterations:
                     print('\n\ntrain end successfully')
