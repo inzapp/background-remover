@@ -148,6 +148,36 @@ class AutoEncoder:
         decoded_img = np.clip(y, 0.0, 255.0).astype('uint8')
         return img, decoded_img
 
+    def l1_distance(self, a, b):
+        threshold = 3.0 / 255.0
+        a = a.reshape(-1).astype('float32') / 255.0
+        b = b.reshape(-1).astype('float32') / 255.0
+        diff_sum = 0.0
+        for i in range(len(a)):
+            diff = abs(a[i] - b[i])
+            if diff > threshold:
+                diff_sum += diff
+        return diff_sum / len(a)
+
+    def z_diff(self, a, b):
+        az = self.encoder.predict_on_batch(x=a.reshape((1,) + self.input_shape))[0]
+        bz = self.encoder.predict_on_batch(x=b.reshape((1,) + self.input_shape))[0]
+        diff_sum = 0.0
+        for i in range(self.encoding_dim):
+            diff = (az[i] - bz[i]) * (az[i] - bz[i])
+            diff_sum += diff
+        return diff_sum
+
+    def detect_tampering(self, a, b):
+        img_l2 = self.l1_distance(a, b)
+        hist_a = cv2.calcHist([a], [0], None, [256], [0, 256])
+        hist_b = cv2.calcHist([b], [0], None, [256], [0, 256])
+        correlation = cv2.compareHist(hist_a, hist_b, cv2.HISTCMP_CORREL)
+        z_l2_distance = self.z_diff(a, b)
+        print(f'method 0 : {correlation:.4f}')
+        print(f'z l2 dist: {self.z_diff(a, b):.4f}')
+        print(f'img l2 dist: {img_l2:.4f}')
+
     def predict_images(self, image_paths):
         """
         Equal to the evaluate function. image paths are required.
@@ -158,10 +188,11 @@ class AutoEncoder:
         with tf.device('/cpu:0'):
             for path in image_paths:
                 img = cv2.imread(path, cv2.IMREAD_GRAYSCALE if self.input_shape[-1] == 1 else cv2.IMREAD_COLOR)
-                img, output_image = self.predict(img, print_z=True)
+                img, output_image = self.predict(img)
                 img = self.resize(img, (self.input_shape[1], self.input_shape[0]))
                 img = np.asarray(img).reshape(img.shape[:2] + (self.input_shape[-1],))
                 cv2.imshow('ae', np.concatenate((img, output_image), axis=1))
+                self.detect_tampering(img, output_image)
                 key = cv2.waitKey(0)
                 if key == 27:
                     break
