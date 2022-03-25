@@ -27,25 +27,17 @@ os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 
 class Model:
-    def __init__(self, input_shape, lr, momentum, encoding_dim):
+    def __init__(self, input_shape, lr, momentum):
         self.input_shape = input_shape
         self.lr = lr
         self.momentum = momentum
-        self.encoding_dim = encoding_dim
         self.ae = None
 
     def load(self, model_path):
         self.ae = tf.keras.models.load_model(model_path, compile=False)
         self.ae.compile(optimizer=tf.keras.optimizers.Adam(lr=self.lr, beta_1=self.momentum), loss=self.loss)
         self.input_shape = self.ae.input_shape[1:]
-        self.encoding_dim = 0
-        for layer in self.ae.layers:
-            if layer.name == 'encoder_output':
-                self.encoding_dim = layer.units
-                break
-        if self.encoding_dim == 0:
-            exit(0)
-        return self.ae, self.input_shape, self.encoding_dim
+        return self.ae, self.input_shape
 
     def build(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)

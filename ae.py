@@ -36,7 +36,6 @@ class AutoEncoder:
                  lr=0.001,
                  momentum=0.9,
                  batch_size=32,
-                 encoding_dim=128,
                  iterations=100000,
                  validation_split=0.2,
                  validation_image_path='',
@@ -57,12 +56,11 @@ class AutoEncoder:
         self.smart_blur = smart_blur
         self.view_flag = 1
 
-        self.model = Model(input_shape=input_shape, lr=lr, momentum=momentum, encoding_dim=encoding_dim)
+        self.model = Model(input_shape=input_shape, lr=lr, momentum=momentum)
         if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
             print(f'\npretrained model path : {[pretrained_model_path]}')
-            self.ae, self.input_shape, self.encoding_dim = self.model.load(pretrained_model_path)
+            self.ae, self.input_shape = self.model.load(pretrained_model_path)
             print(f'input_shape : {self.input_shape}')
-            print(f'encoding_dim : {self.encoding_dim}')
         else:
             self.ae = self.model.build()
 
@@ -89,14 +87,6 @@ class AutoEncoder:
             horizontal_shake_power=horizontal_shake_power,
             add_noise=denoise,
             smart_blur=smart_blur)
-
-    def get_encoding_dim(self, ae):
-        for layer in ae.layers:
-            print(layer)
-            if layer.name == 'encoder_output':
-                print(layer)
-                pass
-        return None
 
     def fit(self):
         self.model.summary()
