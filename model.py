@@ -49,46 +49,27 @@ class Model:
 
     def build(self):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = tf.keras.layers.Conv2D(filters=16, padding='same', kernel_size=3, kernel_initializer='he_normal', activation='relu')(input_layer)
-        x = tf.keras.layers.MaxPool2D()(x)
-        x = tf.keras.layers.Conv2D(filters=32, padding='same', kernel_size=3, kernel_initializer='he_normal', activation='relu')(x)
-        x = tf.keras.layers.MaxPool2D()(x)
-        x = tf.keras.layers.Conv2D(filters=64, padding='same', kernel_size=3, kernel_initializer='he_normal', activation='relu')(x)
-        x = tf.keras.layers.MaxPool2D()(x)
-        x = tf.keras.layers.Conv2D(filters=128, padding='same', kernel_size=3, kernel_initializer='he_normal', activation='relu')(x)
-        x = tf.keras.layers.MaxPool2D()(x)
-        x = tf.keras.layers.Conv2D(filters=256, padding='same', kernel_size=3, kernel_initializer='he_normal', activation='relu')(x)
-        x = tf.keras.layers.MaxPool2D()(x)
-        x = tf.keras.layers.Conv2D(filters=512, padding='same', kernel_size=3, kernel_initializer='he_normal', activation='relu')(x)
-        x = tf.keras.layers.Conv2D(filters=1024, padding='same', kernel_size=1, kernel_initializer='he_normal', activation='relu')(x)
-        x = tf.keras.layers.GlobalAveragePooling2D()(x)
-        x = tf.keras.layers.Dense(units=self.encoding_dim, kernel_initializer='he_normal', activation='relu', name='encoder_output')(x)
-        x = tf.keras.layers.Dense(units=1024, kernel_initializer='he_normal', activation='relu')(x)
-        x = tf.keras.layers.Dense(units=int(np.prod(self.input_shape)), kernel_initializer='glorot_uniform', activation='sigmoid', name='decoder_output')(x)
+        x = tf.keras.layers.Conv2D(filters=32, padding='same', kernel_size=5, kernel_initializer='he_normal', activation='relu')(input_layer)
+        x = tf.keras.layers.SpatialDropout2D(0.125)(x)
+        x = tf.keras.layers.Conv2D(filters=32, padding='same', kernel_size=5, kernel_initializer='he_normal', activation='relu')(x)
+        x = tf.keras.layers.SpatialDropout2D(0.125)(x)
+        x = tf.keras.layers.Conv2D(filters=32, padding='same', kernel_size=1, kernel_initializer='he_normal', activation='relu')(x)
+        x = tf.keras.layers.SpatialDropout2D(0.125)(x)
+        x = tf.keras.layers.Conv2D(filters=32, padding='same', kernel_size=5, kernel_initializer='he_normal', activation='relu')(x)
+        x = tf.keras.layers.SpatialDropout2D(0.125)(x)
+        x = tf.keras.layers.Conv2D(filters=32, padding='same', kernel_size=5, kernel_initializer='he_normal', activation='relu')(x)
+        x = tf.keras.layers.SpatialDropout2D(0.125)(x)
+        x = tf.keras.layers.Conv2D(filters=32, padding='same', kernel_size=1, kernel_initializer='he_normal', activation='relu')(x)
+        x = tf.keras.layers.SpatialDropout2D(0.125)(x)
+        x = tf.keras.layers.Conv2D(filters=32, padding='same', kernel_size=5, kernel_initializer='he_normal', activation='relu')(x)
+        x = tf.keras.layers.SpatialDropout2D(0.125)(x)
+        x = tf.keras.layers.Conv2D(filters=32, padding='same', kernel_size=5, kernel_initializer='he_normal', activation='relu')(x)
+        x = tf.keras.layers.SpatialDropout2D(0.125)(x)
+        x = tf.keras.layers.Conv2D(filters=self.input_shape[-1], padding='same', kernel_size=1, kernel_initializer='glorot_uniform', activation='sigmoid')(x)
         self.ae = tf.keras.models.Model(input_layer, x)
         self.ae.compile(optimizer=tf.keras.optimizers.Adam(lr=self.lr, beta_1=self.momentum), loss=self.loss)
         self.ae.save('model.h5', include_optimizer=False)
         return self.ae
-
-    def extract_encoder(self):
-        encoder = tf.keras.models.Sequential()
-        for layer in self.ae.layers:
-            encoder.add(layer)
-            if layer.name == 'encoder_output':
-                break
-        return encoder
-
-    def extract_decoder(self):
-        flag = False
-        decoder = tf.keras.models.Sequential()
-        for layer in self.ae.layers:
-            if flag:
-                decoder.add(layer)
-                if layer.name == 'decoder_output':
-                    break
-            if layer.name == 'encoder_output':
-                flag = True
-        return decoder
 
     def loss(self, y_true, y_pred):
         return -K.log((1.0 + K.epsilon()) - K.abs(y_true - y_pred))
