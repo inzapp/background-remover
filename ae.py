@@ -44,6 +44,7 @@ class AutoEncoder:
                  training_view=False,
                  pretrained_model_path='',
                  denoise=False,
+                 smart_blur=False,
                  vertical_shake_power=0,
                  horizontal_shake_power=0):
         self.iterations = iterations
@@ -53,6 +54,7 @@ class AutoEncoder:
         self.batch_size = batch_size
         self.checkpoint_path = checkpoint_path
         self.denoise = denoise
+        self.smart_blur = smart_blur
         self.view_flag = 1
 
         self.model = Model(input_shape=input_shape, lr=lr, momentum=momentum, encoding_dim=encoding_dim)
@@ -79,14 +81,16 @@ class AutoEncoder:
             batch_size=batch_size,
             vertical_shake_power=vertical_shake_power,
             horizontal_shake_power=horizontal_shake_power,
-            add_noise=denoise)
+            add_noise=denoise,
+            smart_blur=smart_blur)
         self.validation_data_generator = AAEDataGenerator(
             image_paths=self.validation_image_paths,
             input_shape=input_shape,
             batch_size=batch_size,
             vertical_shake_power=vertical_shake_power,
             horizontal_shake_power=horizontal_shake_power,
-            add_noise=denoise)
+            add_noise=denoise,
+            smart_blur=smart_blur)
 
     def get_encoding_dim(self, ae):
         for layer in ae.layers:
@@ -112,7 +116,7 @@ class AutoEncoder:
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='\t')
                 if self.training_view:
                     self.training_view_function()
-                if iteration_count % 10000 == 0:
+                if iteration_count % 1000 == 0:
                     loss = self.model.ae.evaluate(x=self.validation_data_generator)
                     self.model.save(self.checkpoint_path, iteration_count, loss)
                 if iteration_count == self.iterations:
@@ -130,7 +134,7 @@ class AutoEncoder:
 
     def resize(self, img, size):
         if img.shape[1] > size[0] or img.shape[0] > size[1]:
-            return cv2.resize(img, size, interpolation=cv2.INTER_AREA)
+            return cv2.resize(img, size, interpolation=cv2.INTER_LINEAR)
         else:
             return cv2.resize(img, size, interpolation=cv2.INTER_LINEAR)
 

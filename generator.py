@@ -18,21 +18,26 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import cv2
+import os
 import numpy as np
 import tensorflow as tf
 from concurrent.futures.thread import ThreadPoolExecutor
 
 
 class AAEDataGenerator(tf.keras.utils.Sequence):
-    def __init__(self, image_paths, input_shape, batch_size, add_noise=False, vertical_shake_power=0, horizontal_shake_power=0):
+    def __init__(self, image_paths, input_shape, batch_size, add_noise=False, smart_blur=False, vertical_shake_power=0, horizontal_shake_power=0):
         self.image_paths = image_paths
         self.input_shape = input_shape
         self.batch_size = batch_size
         self.add_noise = add_noise
+        self.smart_blur = smart_blur
         self.vertical_shake_power = vertical_shake_power
         self.horizontal_shake_power = horizontal_shake_power
         self.pool = ThreadPoolExecutor(8)
         self.img_index = 0
+        if self.add_noise and self.smart_blur:
+            print('do not use denoise with smart blur')
+            exit(0)
 
     def __getitem__(self, index):
         batch_x = []
@@ -41,15 +46,49 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
         for _ in range(self.batch_size):
             fs.append(self.pool.submit(self.load_image, self.next_image_path()))
         for f in fs:
-            img = cv2.resize(f.result(), (self.input_shape[1], self.input_shape[0]))
+            img, path = f.result()
+            img = cv2.resize(img, (self.input_shape[1], self.input_shape[0]))
+            raw = img.copy()
             if self.add_noise:
                 img = self.random_adjust(img)
+            elif self.smart_blur:
+                img = self.blur_no_obj(img, path)
             x = np.asarray(img).reshape(self.input_shape)
-            batch_x.append(x)
-            batch_y.append(x.reshape(-1))
+            if self.smart_blur:
+                batch_x.append(raw)
+                batch_y.append(x.reshape(-1))
+            else:
+                batch_x.append(x)
+                batch_y.append(raw.reshape(-1))
         batch_x = np.asarray(batch_x).reshape((self.batch_size,) + self.input_shape).astype('float32') / 255.0
         batch_y = np.asarray(batch_y).reshape((self.batch_size, int(np.prod(self.input_shape)))).astype('float32') / 255.0
         return batch_x, batch_y
+
+    def blur_no_obj(self, img, img_path):
+        label_path = f'{img_path[:-4]}.txt'
+        if not (os.path.exists(label_path) and os.path.isfile(label_path)):
+            print('\nlabel not found : [{label_path}]')
+            return img
+        blur_size = 32
+        raw = img.copy()
+        height, width = raw.shape[:2]
+        blur_img = cv2.blur(img, (blur_size, blur_size))
+        with open(label_path, 'rt') as f:
+            lines = f.readlines()
+        for line in lines:
+            _, cx, cy, w, h = list(map(float, line.split()))
+            x1 = cx - w * 0.5
+            x2 = cx + w * 0.5
+            y1 = cy - h * 0.5
+            y2 = cy + h * 0.5
+            x1 = int(x1 * width)
+            x2 = int(x2 * width)
+            y1 = int(y1 * height)
+            y2 = int(y2 * height)
+            for i in range(y1, y2):
+                for j in range(x1, x2):
+                    blur_img[i][j] = raw[i][j]
+        return blur_img
 
     def next_image_path(self):
         path = self.image_paths[self.img_index]
@@ -63,14 +102,15 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
         return self.batch_size
 
     def load_image(self, image_path):
-        return cv2.imread(image_path, cv2.IMREAD_GRAYSCALE if self.input_shape[-1] == 1 else cv2.IMREAD_COLOR)
+        return cv2.imread(image_path, cv2.IMREAD_GRAYSCALE if self.input_shape[-1] == 1 else cv2.IMREAD_COLOR), image_path
 
     def random_adjust(self, img):
         if np.random.uniform() > 0.5:
             return img
-
-        adjust_opts = ['contrast', 'motion_blur', 'noise', 'loss']
-        # np.random.shuffle(adjust_opts)
+        
+        adjust_opts = ['motion_blur', 'noise', 'loss']
+        # adjust_opts = ['contrast', 'motion_blur', 'noise', 'loss']
+        np.random.shuffle(adjust_opts)
         for i in range(len(adjust_opts)):
             img = self.adjust(img, adjust_opts[i])
         return img
