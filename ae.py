@@ -90,10 +90,33 @@ class AutoEncoder:
 
     def fit(self):
         self.model.summary()
+        self.check_forwarding_time()
         print(f'\ntrain on {len(self.train_image_paths)} samples.')
         print(f'validate on {len(self.validation_image_paths)} samples.')
         print('start training')
         self.train()
+
+    def check_forwarding_time(self):
+        from time import perf_counter
+        input_shape = self.ae.input_shape[1:]
+        mul = 1
+        for val in input_shape:
+            mul *= val
+
+        forward_count = 32
+        noise = np.random.uniform(0.0, 1.0, mul * forward_count)
+        noise = np.asarray(noise).reshape((forward_count, 1) + input_shape).astype('float32')
+        with tf.device('/cpu:0'):
+            self.ae.predict_on_batch(x=noise[0])  # only first forward is slow, skip first forward in check forwarding time
+
+        print('\nstart test forward for check forwarding time.')
+        with tf.device('/cpu:0'):
+            st = perf_counter()
+            for i in range(forward_count):
+                self.ae.predict_on_batch(x=noise[i])
+            et = perf_counter()
+        forwarding_time = ((et - st) / forward_count) * 1000.0
+        print(f'model forwarding time : {forwarding_time:.2f} ms')
 
     def train(self):
         iteration_count = 0
