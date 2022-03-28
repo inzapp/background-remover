@@ -159,17 +159,6 @@ class AutoEncoder:
         decoded_img = np.clip(y, 0.0, 255.0).astype('uint8')
         return img, decoded_img
 
-    def l1_distance(self, a, b):
-        threshold = 3.0 / 255.0
-        a = a.reshape(-1).astype('float32') / 255.0
-        b = b.reshape(-1).astype('float32') / 255.0
-        diff_sum = 0.0
-        for i in range(len(a)):
-            diff = abs(a[i] - b[i])
-            if diff > threshold:
-                diff_sum += diff
-        return diff_sum / len(a)
-
     def predict_images(self, image_paths):
         """
         Equal to the evaluate function. image paths are required.
