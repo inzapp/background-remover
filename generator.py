@@ -56,12 +56,12 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
             x = np.asarray(img).reshape(self.input_shape)
             if self.smart_blur:
                 batch_x.append(raw)
-                batch_y.append(x)
+                batch_y.append(x.reshape(-1))
             else:
                 batch_x.append(x)
-                batch_y.append(raw)
+                batch_y.append(raw.reshape(-1))
         batch_x = np.asarray(batch_x).reshape((self.batch_size,) + self.input_shape).astype('float32') / 255.0
-        batch_y = np.asarray(batch_y).reshape((self.batch_size,) + self.input_shape).astype('float32') / 255.0
+        batch_y = np.asarray(batch_y).reshape((self.batch_size, int(np.prod(self.input_shape)))).astype('float32') / 255.0
         return batch_x, batch_y
 
     def blur_no_obj(self, img, img_path):
@@ -76,11 +76,7 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
         with open(label_path, 'rt') as f:
             lines = f.readlines()
         for line in lines:
-            _, cx, cy, w, h = list(map(float, line.split()))
-            x1 = cx - w * 0.5
-            x2 = cx + w * 0.5
-            y1 = cy - h * 0.5
-            y2 = cy + h * 0.5
+            class_index, cx, cy, w, h = list(map(float, line.split()))
             x1 = int(x1 * width)
             x2 = int(x2 * width)
             y1 = int(y1 * height)
