@@ -46,6 +46,7 @@ class Model:
         x = tf.keras.layers.Conv2D(filters=filters, padding='same', kernel_size=3, kernel_initializer='he_normal', activation='relu')(input_layer)
         m = tf.keras.layers.Concatenate()([b, x])
         x = tf.keras.layers.Conv2D(filters=filters, padding='same', kernel_size=1, kernel_initializer='he_normal', activation='relu')(m)
+        x = tf.keras.layers.MaxPool2D()(x)
 
         b = tf.keras.layers.SpatialDropout2D(0.125)(x)
         b = tf.keras.layers.Conv2D(filters=filters, padding='same', kernel_size=5, kernel_initializer='he_normal', activation='relu')(b)
@@ -61,6 +62,7 @@ class Model:
         m = tf.keras.layers.Concatenate()([b, x])
         x = tf.keras.layers.Conv2D(filters=filters, padding='same', kernel_size=1, kernel_initializer='he_normal', activation='relu')(m)
 
+        x = tf.keras.layers.UpSampling2D()(x)
         b = tf.keras.layers.SpatialDropout2D(0.125)(x)
         b = tf.keras.layers.Conv2D(filters=filters, padding='same', kernel_size=5, kernel_initializer='he_normal', activation='relu')(b)
         x = tf.keras.layers.SpatialDropout2D(0.125)(x)
@@ -68,7 +70,7 @@ class Model:
         m = tf.keras.layers.Concatenate()([b, x])
         x = tf.keras.layers.Conv2D(filters=filters, padding='same', kernel_size=1, kernel_initializer='he_normal', activation='relu')(m)
         x = tf.keras.layers.Conv2D(filters=self.input_shape[-1], padding='same', kernel_size=1, kernel_initializer='glorot_uniform', activation='sigmoid')(m)
-        x = tf.keras.layers.Flatten()(x)
+        x = tf.keras.layers.Flatten(name='ae_output')(x)
         self.ae = tf.keras.models.Model(input_layer, x)
         self.ae.compile(optimizer=tf.keras.optimizers.Adam(lr=self.lr, beta_1=self.momentum), loss=self.loss)
         self.ae.save('model.h5', include_optimizer=False)
