@@ -40,36 +40,29 @@ class Model:
         return self.ae, self.input_shape
 
     def build(self):
-        filters = 32
+        filters = 16
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        b = tf.keras.layers.Conv2D(filters=filters, padding='same', kernel_size=5, kernel_initializer='he_normal', activation='relu')(input_layer)
         x = tf.keras.layers.Conv2D(filters=filters, padding='same', kernel_size=3, kernel_initializer='he_normal', activation='relu')(input_layer)
-        m = tf.keras.layers.Concatenate()([b, x])
-        x = tf.keras.layers.Conv2D(filters=filters, padding='same', kernel_size=1, kernel_initializer='he_normal', activation='relu')(m)
         x = tf.keras.layers.MaxPool2D()(x)
 
         b = tf.keras.layers.SpatialDropout2D(0.125)(x)
-        b = tf.keras.layers.Conv2D(filters=filters, padding='same', kernel_size=5, kernel_initializer='he_normal', activation='relu')(b)
+        b = tf.keras.layers.Conv2D(filters=filters * 2, padding='same', kernel_size=5, kernel_initializer='he_normal', activation='relu')(b)
         x = tf.keras.layers.SpatialDropout2D(0.125)(x)
-        x = tf.keras.layers.Conv2D(filters=filters, padding='same', kernel_size=3, kernel_initializer='he_normal', activation='relu')(x)
+        x = tf.keras.layers.Conv2D(filters=filters * 2, padding='same', kernel_size=3, kernel_initializer='he_normal', activation='relu')(x)
         m = tf.keras.layers.Concatenate()([b, x])
-        x = tf.keras.layers.Conv2D(filters=filters, padding='same', kernel_size=1, kernel_initializer='he_normal', activation='relu')(m)
+        
+        x = tf.keras.layers.Conv2D(filters=filters * 4, padding='same', kernel_size=3, kernel_initializer='he_normal', activation='relu')(m)
 
         b = tf.keras.layers.SpatialDropout2D(0.125)(x)
-        b = tf.keras.layers.Conv2D(filters=filters, padding='same', kernel_size=5, kernel_initializer='he_normal', activation='relu')(b)
+        b = tf.keras.layers.Conv2D(filters=filters * 2, padding='same', kernel_size=5, kernel_initializer='he_normal', activation='relu')(b)
         x = tf.keras.layers.SpatialDropout2D(0.125)(x)
-        x = tf.keras.layers.Conv2D(filters=filters, padding='same', kernel_size=3, kernel_initializer='he_normal', activation='relu')(x)
+        x = tf.keras.layers.Conv2D(filters=filters * 2, padding='same', kernel_size=3, kernel_initializer='he_normal', activation='relu')(x)
         m = tf.keras.layers.Concatenate()([b, x])
-        x = tf.keras.layers.Conv2D(filters=filters, padding='same', kernel_size=1, kernel_initializer='he_normal', activation='relu')(m)
 
-        x = tf.keras.layers.UpSampling2D()(x)
-        b = tf.keras.layers.SpatialDropout2D(0.125)(x)
-        b = tf.keras.layers.Conv2D(filters=filters, padding='same', kernel_size=5, kernel_initializer='he_normal', activation='relu')(b)
+        x = tf.keras.layers.UpSampling2D()(m)
         x = tf.keras.layers.SpatialDropout2D(0.125)(x)
         x = tf.keras.layers.Conv2D(filters=filters, padding='same', kernel_size=3, kernel_initializer='he_normal', activation='relu')(x)
-        m = tf.keras.layers.Concatenate()([b, x])
-        x = tf.keras.layers.Conv2D(filters=filters, padding='same', kernel_size=1, kernel_initializer='he_normal', activation='relu')(m)
-        x = tf.keras.layers.Conv2D(filters=self.input_shape[-1], padding='same', kernel_size=1, kernel_initializer='glorot_uniform', activation='sigmoid')(m)
+        x = tf.keras.layers.Conv2D(filters=self.input_shape[-1], padding='same', kernel_size=1, kernel_initializer='glorot_uniform', activation='sigmoid')(x)
         x = tf.keras.layers.Flatten(name='ae_output')(x)
         self.ae = tf.keras.models.Model(input_layer, x)
         self.ae.compile(optimizer=tf.keras.optimizers.Adam(lr=self.lr, beta_1=self.momentum), loss=self.loss)
