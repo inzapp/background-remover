@@ -17,16 +17,18 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+import os
 import natsort
 import numpy as np
-import os
-import random
 import tensorflow as tf
+import tensorflow.keras.backend as K
+
 from cv2 import cv2
-from generator import AAEDataGenerator
 from glob import glob
-from model import Model
+from tqdm import tqdm
 from time import time
+from model import Model
+from generator import AAEDataGenerator
 
 
 class AutoEncoder:
@@ -46,6 +48,8 @@ class AutoEncoder:
                  smart_blur=False,
                  vertical_shake_power=0,
                  horizontal_shake_power=0):
+        self.lr = lr
+        self.momentum = momentum
         self.iterations = iterations
         self.training_view = training_view
         self.live_view_previous_time = time()
@@ -87,6 +91,14 @@ class AutoEncoder:
             horizontal_shake_power=horizontal_shake_power,
             add_noise=denoise,
             smart_blur=smart_blur)
+        self.validation_data_generator_one_batch = AAEDataGenerator(
+            image_paths=self.validation_image_paths,
+            input_shape=input_shape,
+            batch_size=1,
+            vertical_shake_power=vertical_shake_power,
+            horizontal_shake_power=horizontal_shake_power,
+            add_noise=denoise,
+            smart_blur=smart_blur)
 
     def fit(self):
         self.model.summary()
@@ -95,6 +107,10 @@ class AutoEncoder:
         print(f'validate on {len(self.validation_image_paths)} samples.')
         print('start training')
         self.train()
+
+    @tf.function
+    def graph_forward(self, model, x):
+        return model(x, training=False)
 
     def check_forwarding_time(self):
         from time import perf_counter
@@ -106,30 +122,55 @@ class AutoEncoder:
         forward_count = 32
         noise = np.random.uniform(0.0, 1.0, mul * forward_count)
         noise = np.asarray(noise).reshape((forward_count, 1) + input_shape).astype('float32')
-        with tf.device('/cpu:0'):
-            self.ae.predict_on_batch(x=noise[0])  # only first forward is slow, skip first forward in check forwarding time
+        with tf.device('/gpu:0'):
+            # self.ae.predict_on_batch(x=noise[0])  # only first forward is slow, skip first forward in check forwarding time
+            self.graph_forward(self.ae, noise[0])
 
         print('\nstart test forward for check forwarding time.')
-        with tf.device('/cpu:0'):
+        with tf.device('/gpu:0'):
             st = perf_counter()
             for i in range(forward_count):
-                self.ae.predict_on_batch(x=noise[i])
+                # self.ae.predict_on_batch(x=noise[i])
+                self.graph_forward(self.ae, noise[i])
             et = perf_counter()
         forwarding_time = ((et - st) / forward_count) * 1000.0
         print(f'model forwarding time : {forwarding_time:.2f} ms')
 
+    @tf.function
+    def compute_gradient(self, model, optimizer, batch_x, y_true, batch_mask, use_mask):
+        with tf.GradientTape() as tape:
+            y_pred = model(batch_x, training=True)
+            loss = -K.log((1.0 + K.epsilon()) - K.abs(y_true - y_pred))
+            if use_mask:
+                obj_loss = loss * batch_mask
+                no_obj_loss = loss * tf.where(batch_mask == 0.0, 1.0, 0.0) * 0.01
+                loss = obj_loss + no_obj_loss
+            loss = tf.reduce_mean(loss)
+        gradients = tape.gradient(loss, model.trainable_variables)
+        optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+        return loss
+
+    def evaluate(self, generator):
+        loss_sum = 0.0
+        for ae_x, ae_y, ae_mask in tqdm(generator):
+            y = self.graph_forward(self.ae, ae_x)
+            loss_sum += np.mean(np.abs(ae_y[0] - y[0]))
+        return float(loss_sum / len(generator))
+
     def train(self):
         iteration_count = 0
+        optimizer = tf.keras.optimizers.Adam(lr=self.lr, beta_1=self.momentum)
         while True:
-            for ae_x, ae_y in self.train_data_generator:
+            for ae_x, ae_y, ae_mask in self.train_data_generator:
                 iteration_count += 1
-                loss = self.ae.train_on_batch(ae_x, ae_y, return_dict=True)['loss']
+                loss = self.compute_gradient(self.ae, optimizer, ae_x, ae_y, ae_mask, self.smart_blur)
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='\t')
                 if self.training_view:
                     self.training_view_function()
-                if iteration_count % 5000 == 0:
-                    loss = self.model.ae.evaluate(x=self.validation_data_generator)
+                if iteration_count % 2000 == 0:
+                    loss = self.evaluate(generator=self.validation_data_generator_one_batch)
                     self.model.save(self.checkpoint_path, iteration_count, loss)
+                    print(f'[{iteration_count} iter] val_loss : {loss:.4f}\n')
                 if iteration_count == self.iterations:
                     print('\n\ntrain end successfully')
                     return
@@ -137,7 +178,7 @@ class AutoEncoder:
     @staticmethod
     def init_image_paths(image_path, validation_split=0.0):
         all_image_paths = glob(f'{image_path}/**/*.jpg', recursive=True)
-        random.shuffle(all_image_paths)
+        np.random.shuffle(all_image_paths)
         num_train_images = int(len(all_image_paths) * (1.0 - validation_split))
         image_paths = all_image_paths[:num_train_images]
         validation_image_paths = all_image_paths[num_train_images:]
@@ -191,11 +232,11 @@ class AutoEncoder:
         if cur_time - self.live_view_previous_time > 0.5:
             self.live_view_previous_time = cur_time
             if self.view_flag == 1:
-                img_path = random.choice(self.train_image_paths)
+                img_path = np.random.choice(self.train_image_paths)
                 win_name = 'ae train data'
                 self.view_flag = 0
             else:
-                img_path = random.choice(self.validation_image_paths)
+                img_path = np.random.choice(self.validation_image_paths)
                 win_name = 'ae validation data'
                 self.view_flag = 1
             input_shape = self.ae.input_shape[1:]
