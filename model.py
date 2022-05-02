@@ -103,9 +103,9 @@ class Model:
         x = self.upsampling(x)
 
         x = self.add([x, f0])
-        x = self.concat([x, input_layer])
         x = self.drop_filter(x, 0.125)
         x = self.conv2d(x, filters=filters * 1, kernel_size=3)
+        x = self.concat([x, input_layer])
         x = self.segmentation(x)
         self.ae = tf.keras.models.Model(input_layer, x)
         self.ae.save('model.h5', include_optimizer=False)
