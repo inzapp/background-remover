@@ -40,34 +40,108 @@ class Model:
         return self.ae, self.input_shape
 
     def build(self):
-        filters = 16
+        filters = 8
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        x = tf.keras.layers.Conv2D(filters=filters, padding='same', kernel_size=3, kernel_initializer='he_normal', activation='relu')(input_layer)
-        x = tf.keras.layers.MaxPool2D()(x)
+        x = self.conv2d(input_layer, filters=filters * 1, kernel_size=3)
+        f0 = x
+        x = self.max_pool(x)
 
-        b = tf.keras.layers.SpatialDropout2D(0.125)(x)
-        b = tf.keras.layers.Conv2D(filters=filters * 2, padding='same', kernel_size=5, kernel_initializer='he_normal', activation='relu')(b)
-        x = tf.keras.layers.SpatialDropout2D(0.125)(x)
-        x = tf.keras.layers.Conv2D(filters=filters * 2, padding='same', kernel_size=3, kernel_initializer='he_normal', activation='relu')(x)
-        m = tf.keras.layers.Concatenate()([b, x])
+        x = self.drop_filter(x, 0.125)
+        x = self.conv2d(x, filters=filters * 2, kernel_size=3)
+        f1 = x
+        x = self.max_pool(x)
         
-        x = tf.keras.layers.Conv2D(filters=filters * 4, padding='same', kernel_size=3, kernel_initializer='he_normal', activation='relu')(m)
+        x = self.drop_filter(x, 0.125)
+        x = self.conv2d(x, filters=filters * 4, kernel_size=3)
+        x = self.conv2d(x, filters=filters * 4, kernel_size=3)
+        f2 = x
+        x = self.max_pool(x)
 
-        b = tf.keras.layers.SpatialDropout2D(0.125)(x)
-        b = tf.keras.layers.Conv2D(filters=filters * 2, padding='same', kernel_size=5, kernel_initializer='he_normal', activation='relu')(b)
-        x = tf.keras.layers.SpatialDropout2D(0.125)(x)
-        x = tf.keras.layers.Conv2D(filters=filters * 2, padding='same', kernel_size=3, kernel_initializer='he_normal', activation='relu')(x)
-        m = tf.keras.layers.Concatenate()([b, x])
+        x = self.drop_filter(x, 0.125)
+        x = self.conv2d(x, filters=filters * 8, kernel_size=3)
+        x = self.conv2d(x, filters=filters * 8, kernel_size=3)
+        f3 = x
+        x = self.max_pool(x)
 
-        x = tf.keras.layers.UpSampling2D()(m)
-        x = tf.keras.layers.SpatialDropout2D(0.125)(x)
-        x = tf.keras.layers.Conv2D(filters=filters, padding='same', kernel_size=3, kernel_initializer='he_normal', activation='relu')(x)
-        x = tf.keras.layers.Conv2D(filters=self.input_shape[-1], padding='same', kernel_size=1, kernel_initializer='glorot_uniform', activation='sigmoid')(x)
-        x = tf.keras.layers.Flatten(name='ae_output')(x)
+        x = self.drop_filter(x, 0.125)
+        x = self.conv2d(x, filters=filters * 16, kernel_size=3)
+        x = self.conv2d(x, filters=filters * 16, kernel_size=3)
+        f4 = x
+        x = self.max_pool(x)
+
+        x = self.drop_filter(x, 0.125)
+        x = self.conv2d(x, filters=filters * 32, kernel_size=3)
+        x = self.conv2d(x, filters=filters * 32, kernel_size=3)
+        x = self.conv2d(x, filters=filters * 16, kernel_size=1)
+        x = self.upsampling(x)
+
+        x = self.add([x, f4])
+        x = self.drop_filter(x, 0.125)
+        x = self.conv2d(x, filters=filters * 16, kernel_size=3)
+        x = self.conv2d(x, filters=filters * 16, kernel_size=3)
+        x = self.conv2d(x, filters=filters * 8, kernel_size=1)
+        x = self.upsampling(x)
+
+        x = self.add([x, f3])
+        x = self.drop_filter(x, 0.125)
+        x = self.conv2d(x, filters=filters * 8, kernel_size=3)
+        x = self.conv2d(x, filters=filters * 8, kernel_size=3)
+        x = self.conv2d(x, filters=filters * 4, kernel_size=1)
+        x = self.upsampling(x)
+
+        x = self.add([x, f2])
+        x = self.drop_filter(x, 0.125)
+        x = self.conv2d(x, filters=filters * 4, kernel_size=3)
+        x = self.conv2d(x, filters=filters * 4, kernel_size=3)
+        x = self.conv2d(x, filters=filters * 2, kernel_size=1)
+        x = self.upsampling(x)
+
+        x = self.add([x, f1])
+        x = self.drop_filter(x, 0.125)
+        x = self.conv2d(x, filters=filters * 2, kernel_size=3)
+        x = self.conv2d(x, filters=filters * 1, kernel_size=1)
+        x = self.upsampling(x)
+
+        x = self.add([x, f0])
+        x = self.concat([x, input_layer])
+        x = self.drop_filter(x, 0.125)
+        x = self.conv2d(x, filters=filters * 1, kernel_size=3)
+        x = self.segmentation(x)
         self.ae = tf.keras.models.Model(input_layer, x)
-        self.ae.compile(optimizer=tf.keras.optimizers.Adam(lr=self.lr, beta_1=self.momentum), loss=self.loss)
         self.ae.save('model.h5', include_optimizer=False)
         return self.ae
+
+    def conv2d(self, x, filters, kernel_size):
+        return tf.keras.layers.Conv2D(
+            filters=filters,
+            padding='same',
+            kernel_size=kernel_size,
+            kernel_initializer='he_normal',
+            activation='relu')(x)
+
+    def max_pool(self, x):
+        return tf.keras.layers.MaxPool2D()(x)
+
+    def drop_filter(self, x, rate):
+        return tf.keras.layers.SpatialDropout2D(rate)(x)
+    
+    def upsampling(self, x):
+        return tf.keras.layers.UpSampling2D()(x)
+
+    def add(self, layers):
+        return tf.keras.layers.Add()(layers)
+
+    def concat(self, layers):
+        return tf.keras.layers.Concatenate()(layers)
+
+    def segmentation(self, x, name='output'):
+        x = tf.keras.layers.Conv2D(
+            filters=self.input_shape[-1],
+            padding='same',
+            kernel_size=1,
+            kernel_initializer='glorot_normal',
+            activation='sigmoid')(x)
+        return tf.keras.layers.Flatten(name=name)(x)
 
     def loss(self, y_true, y_pred):
         return -K.log((1.0 + K.epsilon()) - K.abs(y_true - y_pred))
