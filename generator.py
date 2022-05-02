@@ -42,6 +42,7 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
     def __getitem__(self, index):
         batch_x = []
         batch_y = []
+        batch_mask = []
         fs = []
         for _ in range(self.batch_size):
             fs.append(self.pool.submit(self.load_image, self.next_image_path()))
@@ -52,29 +53,57 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
             if self.add_noise:
                 img = self.random_adjust(img)
             elif self.smart_blur:
-                img = self.blur_no_obj(img, path)
+                img = self.remove_no_obj(img, path)
             x = np.asarray(img).reshape(self.input_shape)
             if self.smart_blur:
                 batch_x.append(raw)
                 batch_y.append(x.reshape(-1))
+                batch_mask.append(self.make_obj_mask(path))
             else:
                 batch_x.append(x)
                 batch_y.append(raw.reshape(-1))
         batch_x = np.asarray(batch_x).reshape((self.batch_size,) + self.input_shape).astype('float32') / 255.0
         batch_y = np.asarray(batch_y).reshape((self.batch_size, int(np.prod(self.input_shape)))).astype('float32') / 255.0
-        return batch_x, batch_y
+        if self.smart_blur:
+            batch_mask = np.asarray(batch_mask).reshape((self.batch_size, int(np.prod(self.input_shape)))).astype('float32') / 255.0
+        return batch_x, batch_y, batch_mask
 
-    def blur_no_obj(self, img, img_path):
+    def remove_no_obj(self, img, img_path):
         label_path = f'{img_path[:-4]}.txt'
         if not (os.path.exists(label_path) and os.path.isfile(label_path)):
             print('\nlabel not found : [{label_path}]')
             return img
-        blur_size = 32
         raw = img.copy()
         height, width = raw.shape[:2]
-        blur_img = cv2.blur(img, (blur_size, blur_size))
+        # blur_img = cv2.blur(img, (32, 32))
+        blur_img = np.zeros(shape=self.input_shape, dtype=np.uint8)
         with open(label_path, 'rt') as f:
             lines = f.readlines()
+        for line in lines:
+            class_index, cx, cy, w, h = list(map(float, line.split()))
+            x1 = cx - w * 0.5
+            x2 = cx + w * 0.5
+            y1 = cy - h * 0.5
+            y2 = cy + h * 0.5
+            x1, x2, y1, y2 = np.clip(np.array([x1, x2, y1, y2], dtype=np.float32), 0.0, 1.0)
+            x1 = int(x1 * width)
+            x2 = int(x2 * width)
+            y1 = int(y1 * height)
+            y2 = int(y2 * height)
+            for i in range(y1, y2):
+                for j in range(x1, x2):
+                    blur_img[i][j] = raw[i][j]
+        return blur_img
+
+    def make_obj_mask(self, path):
+        label_path = f'{path[:-4]}.txt'
+        if not (os.path.exists(label_path) and os.path.isfile(label_path)):
+            print('\nlabel not found : [{label_path}]')
+            return None
+        with open(label_path, 'rt') as f:
+            lines = f.readlines()
+        mask = np.zeros(shape=self.input_shape, dtype=np.uint8)
+        height, width = self.input_shape[:2]
         for line in lines:
             class_index, cx, cy, w, h = list(map(float, line.split()))
             x1 = cx - w * 0.5
@@ -85,10 +114,8 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
             x2 = int(x2 * width)
             y1 = int(y1 * height)
             y2 = int(y2 * height)
-            for i in range(y1, y2):
-                for j in range(x1, x2):
-                    blur_img[i][j] = raw[i][j]
-        return blur_img
+            cv2.rectangle(mask, (x1, y1), (x2, y2), color=(255, 255, 255), thickness=-1)
+        return mask
 
     def next_image_path(self):
         path = self.image_paths[self.img_index]
@@ -99,7 +126,7 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
         return path
 
     def __len__(self):
-        return self.batch_size
+        return int(np.floor(len(self.image_paths) / self.batch_size))
 
     def load_image(self, image_path):
         return cv2.imread(image_path, cv2.IMREAD_GRAYSCALE if self.input_shape[-1] == 1 else cv2.IMREAD_COLOR), image_path
