@@ -25,11 +25,11 @@ if __name__ == '__main__':
         validation_image_path=r'C:\inz\train_data\mnist\train',
         input_shape=(64, 64, 1),
         lr=0.001,
-        momentum=0.9,
         batch_size=32,
         iterations=200000,
-        encoding_dim=32,
         training_view=True,
+        remove_background=False,
+        remove_background_type='blur',
         vertical_shake_power=21,
         horizontal_shake_power=21,
         denoise=False).fit()
