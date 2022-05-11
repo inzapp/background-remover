@@ -61,7 +61,7 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
             if self.add_noise:
                 img = self.random_adjust(img)
             if self.remove_background:
-                img = self.remove_background_process(img, path)
+                img = self.remove_background_process(raw, path)
             x = np.asarray(img).reshape(self.input_shape)
             if self.remove_background:
                 batch_x.append(raw)
