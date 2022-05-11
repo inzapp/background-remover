@@ -86,7 +86,7 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
         background_removed = None
         height, width = raw.shape[:2]
         if self.remove_background_type == 'blur':
-            background_removed = cv2.blur(img, (32, 32))
+            background_removed = cv2.GaussianBlur(img, (0, 0), sigmaX=5)
         elif self.remove_background_type == 'black':
             background_removed = np.zeros(shape=self.input_shape, dtype=np.uint8)
         elif self.remove_background_type == 'log':
