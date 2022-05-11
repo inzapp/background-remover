@@ -45,7 +45,7 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
         self.pool = ThreadPoolExecutor(8)
         self.img_index = 0
         if self.remove_background:
-            assert self.remove_background_type in ['blur', 'black', 'log']
+            assert self.remove_background_type in ['blur', 'black', 'log', 'ada', 'dark']
 
     def __getitem__(self, index):
         batch_x = []
@@ -87,10 +87,28 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
         height, width = raw.shape[:2]
         if self.remove_background_type == 'blur':
             background_removed = cv2.blur(img, (32, 32))
-        elif self.remove_background_type in ['black', 'log']:
+        elif self.remove_background_type == 'black':
             background_removed = np.zeros(shape=self.input_shape, dtype=np.uint8)
-            if self.remove_background_type == 'log':
-                pass  # TODO : implement
+        elif self.remove_background_type == 'log':
+            if self.input_shape[-1] == 3:
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            img = cv2.GaussianBlur(img, (0, 0), sigmaX=2)
+            laplacian = cv2.Laplacian(img, ddepth=cv2.CV_32F, ksize=1)
+            laplacian = laplacian / np.max(laplacian)
+            laplacian = np.where(laplacian > 25.5 / 255.0, 1.0, 0.0)
+            laplacian = np.clip(laplacian * 255.0, 0.0, 255.0).astype('uint8')
+            background_removed = laplacian
+            if self.input_shape[-1] == 3:
+                background_removed = cv2.cvtColor(background_removed, cv2.COLOR_GRAY2BGR)
+        elif self.remove_background_type == 'ada':
+            if self.input_shape[-1] == 3:
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            background_removed = cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 21, -3)
+            if self.input_shape[-1] == 3:
+                background_removed = cv2.cvtColor(background_removed, cv2.COLOR_GRAY2BGR)
+        elif self.remove_background_type == 'dark':
+            background_removed = np.asarray(img).astype('float32') * 0.3
+            background_removed = np.clip(background_removed, 0.0, 255.0).astype('uint8')
 
         with open(label_path, 'rt') as f:
             lines = f.readlines()
