@@ -27,15 +27,14 @@ os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 
 class Model:
-    def __init__(self, input_shape, lr, momentum):
+    def __init__(self, input_shape, lr):
         self.input_shape = input_shape
         self.lr = lr
-        self.momentum = momentum
         self.ae = None
 
     def load(self, model_path):
         self.ae = tf.keras.models.load_model(model_path, compile=False)
-        self.ae.compile(optimizer=tf.keras.optimizers.Adam(lr=self.lr, beta_1=self.momentum), loss=self.loss)
+        self.ae.compile(optimizer=tf.keras.optimizers.RMSprop(lr=self.lr), loss=self.loss)
         self.input_shape = self.ae.input_shape[1:]
         return self.ae, self.input_shape
 

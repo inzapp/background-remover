@@ -36,7 +36,6 @@ class AutoEncoder:
                  train_image_path=None,
                  input_shape=(128, 128, 1),
                  lr=0.001,
-                 momentum=0.9,
                  batch_size=32,
                  iterations=100000,
                  validation_split=0.2,
@@ -45,11 +44,11 @@ class AutoEncoder:
                  training_view=False,
                  pretrained_model_path='',
                  denoise=False,
-                 smart_blur=False,
+                 remove_background=False,
+                 remove_background_type=None,
                  vertical_shake_power=0,
                  horizontal_shake_power=0):
         self.lr = lr
-        self.momentum = momentum
         self.iterations = iterations
         self.training_view = training_view
         self.live_view_previous_time = time()
@@ -57,10 +56,11 @@ class AutoEncoder:
         self.batch_size = batch_size
         self.checkpoint_path = checkpoint_path
         self.denoise = denoise
-        self.smart_blur = smart_blur
+        self.remove_background = remove_background
+        self.remove_background_type = remove_background_type
         self.view_flag = 1
 
-        self.model = Model(input_shape=input_shape, lr=lr, momentum=momentum)
+        self.model = Model(input_shape=input_shape, lr=lr)
         if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
             print(f'\npretrained model path : {[pretrained_model_path]}')
             self.ae, self.input_shape = self.model.load(pretrained_model_path)
@@ -82,7 +82,8 @@ class AutoEncoder:
             vertical_shake_power=vertical_shake_power,
             horizontal_shake_power=horizontal_shake_power,
             add_noise=denoise,
-            smart_blur=smart_blur)
+            remove_background=remove_background,
+            remove_background_type=remove_background_type)
         self.validation_data_generator = AAEDataGenerator(
             image_paths=self.validation_image_paths,
             input_shape=input_shape,
@@ -90,7 +91,8 @@ class AutoEncoder:
             vertical_shake_power=vertical_shake_power,
             horizontal_shake_power=horizontal_shake_power,
             add_noise=denoise,
-            smart_blur=smart_blur)
+            remove_background=remove_background,
+            remove_background_type=remove_background_type)
         self.validation_data_generator_one_batch = AAEDataGenerator(
             image_paths=self.validation_image_paths,
             input_shape=input_shape,
@@ -98,7 +100,8 @@ class AutoEncoder:
             vertical_shake_power=vertical_shake_power,
             horizontal_shake_power=horizontal_shake_power,
             add_noise=denoise,
-            smart_blur=smart_blur)
+            remove_background=remove_background,
+            remove_background_type=remove_background_type)
 
     def fit(self):
         self.model.summary()
@@ -123,14 +126,12 @@ class AutoEncoder:
         noise = np.random.uniform(0.0, 1.0, mul * forward_count)
         noise = np.asarray(noise).reshape((forward_count, 1) + input_shape).astype('float32')
         with tf.device('/gpu:0'):
-            # self.ae.predict_on_batch(x=noise[0])  # only first forward is slow, skip first forward in check forwarding time
-            self.graph_forward(self.ae, noise[0])
+            self.graph_forward(self.ae, noise[0])  # only first forward is slow, skip first forward in check forwarding time
 
         print('\nstart test forward for check forwarding time.')
         with tf.device('/gpu:0'):
             st = perf_counter()
             for i in range(forward_count):
-                # self.ae.predict_on_batch(x=noise[i])
                 self.graph_forward(self.ae, noise[i])
             et = perf_counter()
         forwarding_time = ((et - st) / forward_count) * 1000.0
@@ -140,15 +141,19 @@ class AutoEncoder:
     def compute_gradient(self, model, optimizer, batch_x, y_true, batch_mask, use_mask):
         with tf.GradientTape() as tape:
             y_pred = model(batch_x, training=True)
-            loss = -K.log((1.0 + K.epsilon()) - K.abs(y_true - y_pred))
+            abs_error = K.abs(y_true - y_pred)
+            loss = -K.log((1.0 + K.epsilon()) - abs_error)
             if use_mask:
                 obj_loss = loss * batch_mask
-                no_obj_loss = loss * tf.where(batch_mask == 0.0, 1.0, 0.0) * 0.01
+                ignore_mask = tf.where(abs_error < 0.001, 0.0, 1.0)
+                no_obj_mask = tf.where(batch_mask == 0.0, 0.5, 0.0)
+                no_obj_loss = K.square(y_true - y_pred) * ignore_mask * no_obj_mask
                 loss = obj_loss + no_obj_loss
-            loss = tf.reduce_mean(loss)
+            loss = tf.reduce_mean(loss, axis=0)
+            mean_loss = tf.reduce_mean(loss)
         gradients = tape.gradient(loss, model.trainable_variables)
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-        return loss
+        return mean_loss
 
     def evaluate(self, generator):
         loss_sum = 0.0
@@ -159,11 +164,11 @@ class AutoEncoder:
 
     def train(self):
         iteration_count = 0
-        optimizer = tf.keras.optimizers.Adam(lr=self.lr, beta_1=self.momentum)
+        optimizer = tf.keras.optimizers.RMSprop(lr=self.lr)
         while True:
             for ae_x, ae_y, ae_mask in self.train_data_generator:
                 iteration_count += 1
-                loss = self.compute_gradient(self.ae, optimizer, ae_x, ae_y, ae_mask, self.smart_blur)
+                loss = self.compute_gradient(self.ae, optimizer, ae_x, ae_y, ae_mask, self.remove_background)
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='\t')
                 if self.training_view:
                     self.training_view_function()

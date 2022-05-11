@@ -25,19 +25,27 @@ from concurrent.futures.thread import ThreadPoolExecutor
 
 
 class AAEDataGenerator(tf.keras.utils.Sequence):
-    def __init__(self, image_paths, input_shape, batch_size, add_noise=False, smart_blur=False, vertical_shake_power=0, horizontal_shake_power=0):
+    def __init__(self,
+                 image_paths,
+                 input_shape,
+                 batch_size,
+                 vertical_shake_power=0,
+                 horizontal_shake_power=0,
+                 add_noise=False,
+                 remove_background=False,
+                 remove_background_type='black'):
         self.image_paths = image_paths
         self.input_shape = input_shape
         self.batch_size = batch_size
-        self.add_noise = add_noise
-        self.smart_blur = smart_blur
         self.vertical_shake_power = vertical_shake_power
         self.horizontal_shake_power = horizontal_shake_power
+        self.add_noise = add_noise
+        self.remove_background = remove_background
+        self.remove_background_type = remove_background_type
         self.pool = ThreadPoolExecutor(8)
         self.img_index = 0
-        if self.add_noise and self.smart_blur:
-            print('do not use denoise with smart blur')
-            exit(0)
+        if self.remove_background:
+            assert self.remove_background_type in ['blur', 'black', 'log']
 
     def __getitem__(self, index):
         batch_x = []
@@ -52,10 +60,10 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
             raw = img.copy()
             if self.add_noise:
                 img = self.random_adjust(img)
-            elif self.smart_blur:
-                img = self.remove_no_obj(img, path)
+            if self.remove_background:
+                img = self.remove_background_process(img, path)
             x = np.asarray(img).reshape(self.input_shape)
-            if self.smart_blur:
+            if self.remove_background:
                 batch_x.append(raw)
                 batch_y.append(x.reshape(-1))
                 batch_mask.append(self.make_obj_mask(path))
@@ -64,19 +72,26 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
                 batch_y.append(raw.reshape(-1))
         batch_x = np.asarray(batch_x).reshape((self.batch_size,) + self.input_shape).astype('float32') / 255.0
         batch_y = np.asarray(batch_y).reshape((self.batch_size, int(np.prod(self.input_shape)))).astype('float32') / 255.0
-        if self.smart_blur:
+        if self.remove_background:
             batch_mask = np.asarray(batch_mask).reshape((self.batch_size, int(np.prod(self.input_shape)))).astype('float32') / 255.0
         return batch_x, batch_y, batch_mask
 
-    def remove_no_obj(self, img, img_path):
+    def remove_background_process(self, img, img_path):
         label_path = f'{img_path[:-4]}.txt'
         if not (os.path.exists(label_path) and os.path.isfile(label_path)):
             print('\nlabel not found : [{label_path}]')
             return img
+
         raw = img.copy()
+        background_removed = None
         height, width = raw.shape[:2]
-        # blur_img = cv2.blur(img, (32, 32))
-        blur_img = np.zeros(shape=self.input_shape, dtype=np.uint8)
+        if self.remove_background_type == 'blur':
+            background_removed = cv2.blur(img, (32, 32))
+        elif self.remove_background_type in ['black', 'log']:
+            background_removed = np.zeros(shape=self.input_shape, dtype=np.uint8)
+            if self.remove_background_type == 'log':
+                pass  # TODO : implement
+
         with open(label_path, 'rt') as f:
             lines = f.readlines()
         for line in lines:
@@ -92,8 +107,8 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
             y2 = int(y2 * height)
             for i in range(y1, y2):
                 for j in range(x1, x2):
-                    blur_img[i][j] = raw[i][j]
-        return blur_img
+                    background_removed[i][j] = raw[i][j]
+        return background_removed
 
     def make_obj_mask(self, path):
         label_path = f'{path[:-4]}.txt'
