@@ -45,7 +45,7 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
         self.pool = ThreadPoolExecutor(8)
         self.img_index = 0
         if self.remove_background:
-            assert self.remove_background_type in ['blur', 'black', 'log', 'ada', 'dark']
+            assert self.remove_background_type in ['blur', 'black', 'gray', 'white', 'log', 'ada', 'dark']
 
     def __getitem__(self, index):
         batch_x = []
@@ -87,8 +87,12 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
         height, width = raw.shape[:2]
         if self.remove_background_type == 'blur':
             background_removed = cv2.GaussianBlur(img, (0, 0), sigmaX=5)
-        elif self.remove_background_type == 'black':
+        elif self.remove_background_type in ['black', 'gray', 'white']:
             background_removed = np.zeros(shape=self.input_shape, dtype=np.uint8)
+            if self.remove_background_type == 'gray':
+                background_removed += 128
+            elif self.remove_background_type == 'white':
+                background_removed += 255
         elif self.remove_background_type == 'log':
             if self.input_shape[-1] == 3:
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
