@@ -60,7 +60,7 @@ class AutoEncoder:
         self.remove_background_type = remove_background_type
         self.view_flag = 1
 
-        self.model = Model(input_shape=input_shape, lr=lr)
+        self.model = Model(input_shape=input_shape, lr=lr, input_layer_concat=self.remove_background and not self.denoise)
         if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
             print(f'\npretrained model path : {[pretrained_model_path]}')
             self.ae, self.input_shape = self.model.load(pretrained_model_path)
@@ -142,18 +142,18 @@ class AutoEncoder:
         with tf.GradientTape() as tape:
             y_pred = model(batch_x, training=True)
             abs_error = K.abs(y_true - y_pred)
+            mae = tf.reduce_mean(abs_error)
             loss = -K.log((1.0 + K.epsilon()) - abs_error)
             if use_mask:
                 obj_loss = loss * batch_mask
                 no_obj_mask = tf.where(batch_mask == 0.0, 1.0, 0.0)
                 ignore_mask = tf.where(abs_error < 0.005, 0.0, 1.0) * no_obj_mask
                 no_obj_loss = K.binary_crossentropy(y_true, y_pred) * tf.square(abs_error) * ignore_mask
-                loss = (obj_loss * 1.0) + no_obj_loss
+                loss = obj_loss + no_obj_loss
             loss = tf.reduce_mean(loss, axis=0)
-            mean_loss = tf.reduce_mean(loss)
         gradients = tape.gradient(loss, model.trainable_variables)
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-        return mean_loss
+        return mae
 
     def evaluate(self, generator):
         loss_sum = 0.0
@@ -164,7 +164,11 @@ class AutoEncoder:
 
     def train(self):
         iteration_count = 0
-        optimizer = tf.keras.optimizers.Adam(lr=self.lr, beta_1=0.5, beta_2=0.95)
+        optimizer = None
+        if self.remove_background:
+            optimizer = tf.keras.optimizers.Adam(lr=self.lr * 0.2, beta_1=0.5, beta_2=0.95)
+        else:
+            optimizer = tf.keras.optimizers.RMSprop(lr=self.lr)
         while True:
             for ae_x, ae_y, ae_mask in self.train_data_generator:
                 iteration_count += 1

@@ -27,14 +27,14 @@ os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 
 class Model:
-    def __init__(self, input_shape, lr):
+    def __init__(self, input_shape, lr, input_layer_concat):
         self.input_shape = input_shape
         self.lr = lr
         self.ae = None
+        self.input_layer_concat = input_layer_concat
 
     def load(self, model_path):
         self.ae = tf.keras.models.load_model(model_path, compile=False)
-        self.ae.compile(optimizer=tf.keras.optimizers.RMSprop(lr=self.lr), loss=self.loss)
         self.input_shape = self.ae.input_shape[1:]
         return self.ae, self.input_shape
 
@@ -104,7 +104,8 @@ class Model:
         x = self.add([x, f0])
         x = self.drop_filter(x, 0.125)
         x = self.conv2d(x, filters=filters * 1, kernel_size=3)
-        x = self.concat([x, input_layer])
+        if self.input_layer_concat:
+            x = self.concat([x, input_layer])
         x = self.segmentation(x)
         self.ae = tf.keras.models.Model(input_layer, x)
         self.ae.save('model.h5', include_optimizer=False)
