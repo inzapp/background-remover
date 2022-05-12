@@ -145,10 +145,10 @@ class AutoEncoder:
             loss = -K.log((1.0 + K.epsilon()) - abs_error)
             if use_mask:
                 obj_loss = loss * batch_mask
-                ignore_mask = tf.where(abs_error < 0.001, 0.0, 1.0)
                 no_obj_mask = tf.where(batch_mask == 0.0, 1.0, 0.0)
-                no_obj_loss = K.pow(abs_error, 4) * ignore_mask * no_obj_mask
-                loss = obj_loss + no_obj_loss
+                ignore_mask = tf.where(abs_error < 0.005, 0.0, 1.0) * no_obj_mask
+                no_obj_loss = K.binary_crossentropy(y_true, y_pred) * tf.square(abs_error) * ignore_mask
+                loss = (obj_loss * 1.0) + no_obj_loss
             loss = tf.reduce_mean(loss, axis=0)
             mean_loss = tf.reduce_mean(loss)
         gradients = tape.gradient(loss, model.trainable_variables)
@@ -164,7 +164,7 @@ class AutoEncoder:
 
     def train(self):
         iteration_count = 0
-        optimizer = tf.keras.optimizers.RMSprop(lr=self.lr)
+        optimizer = tf.keras.optimizers.Adam(lr=self.lr, beta_1=0.5, beta_2=0.95)
         while True:
             for ae_x, ae_y, ae_mask in self.train_data_generator:
                 iteration_count += 1
