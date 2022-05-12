@@ -171,51 +171,24 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
     def random_adjust(self, img):
         if np.random.uniform() > 0.5:
             return img
-        
-        adjust_opts = ['motion_blur', 'noise', 'loss']
-        # adjust_opts = ['contrast', 'motion_blur', 'noise', 'loss']
+        adjust_opts = ['noise', 'blur', 'motion_blur']
         np.random.shuffle(adjust_opts)
         for i in range(len(adjust_opts)):
             img = self.adjust(img, adjust_opts[i])
         return img
 
     def adjust(self, img, adjust_type):
-        if self.input_shape[-1] == 1:
-            img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-
-        weight = np.random.uniform(0.75, 1.25)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-        h, s, v = cv2.split(img)
-
-        if adjust_type == 'hue':
-            h = np.asarray(h).astype('float32') * weight
-            h = np.clip(h, 0.0, 255.0).astype('uint8')
-        elif adjust_type == 'saturation':
-            s = np.asarray(s).astype('float32') * weight
-            s = np.clip(s, 0.0, 255.0).astype('uint8')
-        elif adjust_type == 'brightness':
-            v = np.asarray(v).astype('float32') * weight
-            v = np.clip(v, 0.0, 255.0).astype('uint8')
-        elif adjust_type == 'contrast':
-            weight = np.random.uniform(0.0, 0.5)
-            criteria = np.random.uniform(84.0, 170.0)
-            v = np.asarray(v).astype('float32')
-            v += (criteria - v) * weight
-            v = np.clip(v, 0.0, 255.0).astype('uint8')
-        elif adjust_type == 'noise':
-            range_min = np.random.uniform(0.0, 100.0)
-            range_max = np.random.uniform(0.0, 100.0)
-            v = np.asarray(v).astype('float32')
-            v += np.random.uniform(-range_min, range_max, size=v.shape)
-            v = np.clip(v, 0.0, 255.0).astype('uint8')
-        elif adjust_type == 'loss':
-            origin_height, origin_width = img.shape[0], img.shape[1]
-            fx = np.random.uniform(0.33, 1.0)
-            fy = np.random.uniform(0.33, 1.0)
-            img = cv2.merge([h, s, v])
-            img = cv2.resize(img, (0, 0), fx=fx, fy=fy, interpolation=cv2.INTER_LINEAR)
-            img = cv2.resize(img, (origin_width, origin_height), interpolation=cv2.INTER_AREA)
-            h, s, v = cv2.split(img)
+        if adjust_type == 'noise':
+            range_min = np.random.uniform(0.0, 50.0)
+            range_max = np.random.uniform(0.0, 50.0)
+            img = np.asarray(img).astype('float32')
+            img += np.random.uniform(-range_min, range_max, size=img.shape)
+            img = np.clip(img, 0.0, 255.0).astype('uint8')
+        elif adjust_type == 'blur':
+            if np.random.uniform() > 0.5:
+                img = cv2.blur(img, (2, 2))
+            else:
+                img = cv2.GaussianBlur(img, (3, 3), sigmaX=0)
         elif adjust_type == 'motion_blur' and (self.vertical_shake_power > 1 or self.horizontal_shake_power > 1):
             size = None
             kernel = None
@@ -236,14 +209,6 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
                 size = np.random.randint(1, self.horizontal_shake_power)
                 kernel = np.zeros((size, size))
                 kernel[int((size - 1) / 2), :] = np.ones(size)
-
             kernel /= size
-            img = cv2.merge([h, s, v])
             img = cv2.filter2D(img, -1, kernel)
-            h, s, v = cv2.split(img)
-
-        img = cv2.merge([h, s, v])
-        img = cv2.cvtColor(img, cv2.COLOR_HSV2BGR)
-        if self.input_shape[-1] == 1:
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         return img
