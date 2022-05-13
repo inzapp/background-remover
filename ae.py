@@ -60,7 +60,8 @@ class AutoEncoder:
         self.remove_background_type = remove_background_type
         self.view_flag = 1
 
-        self.model = Model(input_shape=input_shape, lr=lr, input_layer_concat=self.remove_background and not self.denoise)
+        use_input_layer_concat = self.remove_background and self.remove_background_type in ['black', 'gray', 'white', 'dark'] and not self.denoise
+        self.model = Model(input_shape=input_shape, lr=lr, input_layer_concat=use_input_layer_concat)
         if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
             print(f'\npretrained model path : {[pretrained_model_path]}')
             self.ae, self.input_shape = self.model.load(pretrained_model_path)
@@ -148,7 +149,7 @@ class AutoEncoder:
                 obj_loss = loss * batch_mask
                 no_obj_mask = tf.where(batch_mask == 0.0, 1.0, 0.0)
                 ignore_mask = tf.where(abs_error < 0.005, 0.0, 1.0) * no_obj_mask
-                no_obj_loss = K.binary_crossentropy(y_true, y_pred) * tf.square(abs_error) * ignore_mask
+                no_obj_loss = loss * tf.square(abs_error) * ignore_mask
                 loss = obj_loss + no_obj_loss
             loss = tf.reduce_mean(loss, axis=0)
         gradients = tape.gradient(loss, model.trainable_variables)
