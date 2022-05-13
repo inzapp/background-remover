@@ -144,12 +144,12 @@ class AutoEncoder:
             y_pred = model(batch_x, training=True)
             abs_error = K.abs(y_true - y_pred)
             mae = tf.reduce_mean(abs_error)
-            loss = -K.log((1.0 + K.epsilon()) - abs_error)
+            loss = K.binary_crossentropy(y_true, y_pred)
             if use_mask:
                 obj_loss = loss * batch_mask
                 no_obj_mask = tf.where(batch_mask == 0.0, 1.0, 0.0)
                 ignore_mask = tf.where(abs_error < 0.005, 0.0, 1.0) * no_obj_mask
-                no_obj_loss = loss * tf.square(abs_error) * ignore_mask
+                no_obj_loss = loss * ignore_mask * K.clip(abs_error, 0.25, 1.0)
                 loss = obj_loss + no_obj_loss
             loss = tf.reduce_mean(loss, axis=0)
         gradients = tape.gradient(loss, model.trainable_variables)
@@ -165,11 +165,7 @@ class AutoEncoder:
 
     def train(self):
         iteration_count = 0
-        optimizer = None
-        if self.remove_background:
-            optimizer = tf.keras.optimizers.Adam(lr=self.lr * 0.2, beta_1=0.5, beta_2=0.95)
-        else:
-            optimizer = tf.keras.optimizers.RMSprop(lr=self.lr)
+        optimizer = tf.keras.optimizers.Adam(lr=self.lr, beta_1=0.5, beta_2=0.95)
         while True:
             for ae_x, ae_y, ae_mask in self.train_data_generator:
                 iteration_count += 1
@@ -177,7 +173,7 @@ class AutoEncoder:
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='\t')
                 if self.training_view:
                     self.training_view_function()
-                if iteration_count % 2000 == 0:
+                if iteration_count % 5000 == 0:
                     loss = self.evaluate(generator=self.validation_data_generator_one_batch)
                     self.model.save(self.checkpoint_path, iteration_count, loss)
                     print(f'[{iteration_count} iter] val_loss : {loss:.4f}\n')
