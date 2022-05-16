@@ -6,4 +6,4 @@
 .idea/
 __pycache__/
 checkpoints/
-cscope.out
+cscope.*
