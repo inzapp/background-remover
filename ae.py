@@ -165,7 +165,7 @@ class AutoEncoder:
 
     def train(self):
         iteration_count = 0
-        optimizer = tf.keras.optimizers.Adam(lr=self.lr, beta_1=0.5, beta_2=0.95)
+        optimizer = tf.keras.optimizers.Adam(lr=self.lr, beta_1=0.5)
         while True:
             for ae_x, ae_y, ae_mask in self.train_data_generator:
                 iteration_count += 1
