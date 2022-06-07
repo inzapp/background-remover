@@ -39,7 +39,7 @@ class Model:
         return self.ae, self.input_shape
 
     def build(self):
-        filters = 8
+        filters = 16
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
         x = self.conv2d(input_layer, filters=filters * 1, kernel_size=3)
         f0 = x
