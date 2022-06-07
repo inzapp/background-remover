@@ -118,6 +118,8 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
             lines = f.readlines()
         for line in lines:
             class_index, cx, cy, w, h = list(map(float, line.split()))
+            w += w * 0.1
+            h += h * 0.1
             x1 = cx - w * 0.5
             x2 = cx + w * 0.5
             y1 = cy - h * 0.5
