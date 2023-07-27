@@ -18,12 +18,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import os
+import cv2
 import natsort
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.backend as K
 
-from cv2 import cv2
 from glob import glob
 from tqdm import tqdm
 from time import time

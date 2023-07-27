@@ -20,7 +20,6 @@ limitations under the License.
 import os
 import numpy as np
 import tensorflow as tf
-from keras import backend as K
 
 
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
@@ -144,7 +143,7 @@ class Model:
         return tf.keras.layers.Flatten(name=name)(x)
 
     def loss(self, y_true, y_pred):
-        return -K.log((1.0 + K.epsilon()) - K.abs(y_true - y_pred))
+        return -tf.math.log((1.0 + tf.keras.backend.epsilon()) - tf.abs(y_true - y_pred))
 
     def save(self, path, iteration_count, loss):
         self.ae.save(f'{path}/ae_{iteration_count}_iter_{loss:.4f}_loss.h5', include_optimizer=False)
