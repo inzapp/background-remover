@@ -25,6 +25,7 @@ if __name__ == '__main__':
         validation_image_path=r'C:\inz\train_data\mnist\train',
         input_shape=(64, 64, 1),
         lr=0.001,
+        warm_up=0.5,
         batch_size=32,
         iterations=200000,
         training_view=True,

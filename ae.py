@@ -22,12 +22,12 @@ import cv2
 import natsort
 import numpy as np
 import tensorflow as tf
-import tensorflow.keras.backend as K
 
 from glob import glob
 from tqdm import tqdm
 from time import time
 from model import Model
+from lr_scheduler import LRScheduler
 from generator import AAEDataGenerator
 
 
@@ -36,6 +36,7 @@ class AutoEncoder:
                  train_image_path=None,
                  input_shape=(128, 128, 1),
                  lr=0.001,
+                 warm_up=0.5,
                  batch_size=32,
                  iterations=100000,
                  validation_split=0.2,
@@ -49,6 +50,7 @@ class AutoEncoder:
                  vertical_shake_power=0,
                  horizontal_shake_power=0):
         self.lr = lr
+        self.warm_up = warm_up
         self.iterations = iterations
         self.training_view = training_view
         self.live_view_previous_time = time()
@@ -142,14 +144,14 @@ class AutoEncoder:
     def compute_gradient(self, model, optimizer, batch_x, y_true, batch_mask, use_mask):
         with tf.GradientTape() as tape:
             y_pred = model(batch_x, training=True)
-            abs_error = K.abs(y_true - y_pred)
+            abs_error = tf.abs(y_true - y_pred)
             mae = tf.reduce_mean(abs_error)
-            loss = K.binary_crossentropy(y_true, y_pred)
+            loss = tf.keras.backend.binary_crossentropy(y_true, y_pred)
             if use_mask:
                 obj_loss = loss * batch_mask
                 no_obj_mask = tf.where(batch_mask == 0.0, 1.0, 0.0)
                 ignore_mask = tf.where(abs_error < 0.005, 0.0, 1.0) * no_obj_mask
-                no_obj_loss = loss * ignore_mask * K.clip(abs_error, 0.25, 1.0)
+                no_obj_loss = loss * ignore_mask * tf.clip_by_value(abs_error, 0.25, 1.0)
                 loss = obj_loss + no_obj_loss
             loss = tf.reduce_mean(loss, axis=0)
         gradients = tape.gradient(loss, model.trainable_variables)
@@ -166,8 +168,10 @@ class AutoEncoder:
     def train(self):
         iteration_count = 0
         optimizer = tf.keras.optimizers.Adam(lr=self.lr, beta_1=0.5)
+        lr_scheduler = LRScheduler(lr=self.lr, iterations=self.iterations, warm_up=self.warm_up, policy='step')
         while True:
             for ae_x, ae_y, ae_mask in self.train_data_generator:
+                lr_scheduler.update(optimizer, iteration_count)
                 iteration_count += 1
                 loss = self.compute_gradient(self.ae, optimizer, ae_x, ae_y, ae_mask, self.remove_background)
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='\t')
