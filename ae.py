@@ -167,7 +167,7 @@ class AutoEncoder:
 
     def train(self):
         iteration_count = 0
-        optimizer = tf.keras.optimizers.Adam(lr=self.lr, beta_1=0.5)
+        optimizer = tf.keras.optimizers.RMSprop(lr=self.lr)
         lr_scheduler = LRScheduler(lr=self.lr, iterations=self.iterations, warm_up=self.warm_up, policy='step')
         while True:
             for ae_x, ae_y, ae_mask in self.train_data_generator:

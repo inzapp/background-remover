@@ -115,7 +115,7 @@ class Model:
             filters=filters,
             padding='same',
             kernel_size=kernel_size,
-            kernel_initializer='he_normal',
+            kernel_initializer='glorot_normal',
             activation='relu')(x)
 
     def max_pool(self, x):
