@@ -150,3 +150,4 @@ class Model:
 
     def summary(self):
         self.ae.summary()
+

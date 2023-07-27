@@ -32,7 +32,6 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
                  vertical_shake_power=0,
                  horizontal_shake_power=0,
                  add_noise=False,
-                 remove_background=False,
                  remove_background_type='black'):
         self.image_paths = image_paths
         self.input_shape = input_shape
@@ -40,43 +39,33 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
         self.vertical_shake_power = vertical_shake_power
         self.horizontal_shake_power = horizontal_shake_power
         self.add_noise = add_noise
-        self.remove_background = remove_background
         self.remove_background_type = remove_background_type
         self.pool = ThreadPoolExecutor(8)
         self.img_index = 0
-        if self.remove_background:
-            assert self.remove_background_type in ['blur', 'black', 'gray', 'white', 'log', 'ada', 'dark']
+        assert self.remove_background_type in ['blur', 'black', 'gray', 'white', 'log', 'ada', 'dark']
 
     def __getitem__(self, index):
-        batch_x = []
-        batch_y = []
-        batch_mask = []
         fs = []
         for _ in range(self.batch_size):
             fs.append(self.pool.submit(self.load_image, self.next_image_path()))
+        batch_x, batch_y, batch_m = [], [], []
         for f in fs:
             img, path = f.result()
             img = cv2.resize(img, (self.input_shape[1], self.input_shape[0]))
             raw = img.copy()
             if self.add_noise:
                 img = self.random_adjust(img)
-            if self.remove_background:
-                img = self.remove_background_process(raw, path)
+            img = self.remove_background(raw, path)
             x = np.asarray(img).reshape(self.input_shape)
-            if self.remove_background:
-                batch_x.append(raw)
-                batch_y.append(x.reshape(-1))
-                batch_mask.append(self.make_obj_mask(path))
-            else:
-                batch_x.append(x)
-                batch_y.append(raw.reshape(-1))
+            batch_x.append(raw)
+            batch_y.append(x.reshape(-1))
+            batch_m.append(self.make_obj_mask(path))
         batch_x = np.asarray(batch_x).reshape((self.batch_size,) + self.input_shape).astype('float32') / 255.0
         batch_y = np.asarray(batch_y).reshape((self.batch_size, int(np.prod(self.input_shape)))).astype('float32') / 255.0
-        if self.remove_background:
-            batch_mask = np.asarray(batch_mask).reshape((self.batch_size, int(np.prod(self.input_shape)))).astype('float32') / 255.0
-        return batch_x, batch_y, batch_mask
+        batch_m = np.asarray(batch_m).reshape((self.batch_size, int(np.prod(self.input_shape)))).astype('float32') / 255.0
+        return batch_x, batch_y, batch_m
 
-    def remove_background_process(self, img, img_path):
+    def remove_background(self, img, img_path):
         label_path = f'{img_path[:-4]}.txt'
         if not (os.path.exists(label_path) and os.path.isfile(label_path)):
             print('\nlabel not found : [{label_path}]')
@@ -214,3 +203,4 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
             kernel /= size
             img = cv2.filter2D(img, -1, kernel)
         return img
+

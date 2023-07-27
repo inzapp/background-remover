@@ -45,7 +45,6 @@ class AutoEncoder:
                  training_view=False,
                  pretrained_model_path='',
                  denoise=False,
-                 remove_background=False,
                  remove_background_type=None,
                  vertical_shake_power=0,
                  horizontal_shake_power=0):
@@ -58,11 +57,10 @@ class AutoEncoder:
         self.batch_size = batch_size
         self.checkpoint_path = checkpoint_path
         self.denoise = denoise
-        self.remove_background = remove_background
         self.remove_background_type = remove_background_type
         self.view_flag = 1
 
-        use_input_layer_concat = self.remove_background and self.remove_background_type in ['black', 'gray', 'white', 'dark'] and not self.denoise
+        use_input_layer_concat = self.remove_background_type in ['black', 'gray', 'white', 'dark'] and not self.denoise
         self.model = Model(input_shape=input_shape, lr=lr, input_layer_concat=use_input_layer_concat)
         if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
             print(f'\npretrained model path : {[pretrained_model_path]}')
@@ -85,7 +83,6 @@ class AutoEncoder:
             vertical_shake_power=vertical_shake_power,
             horizontal_shake_power=horizontal_shake_power,
             add_noise=denoise,
-            remove_background=remove_background,
             remove_background_type=remove_background_type)
         self.validation_data_generator = AAEDataGenerator(
             image_paths=self.validation_image_paths,
@@ -94,7 +91,6 @@ class AutoEncoder:
             vertical_shake_power=vertical_shake_power,
             horizontal_shake_power=horizontal_shake_power,
             add_noise=denoise,
-            remove_background=remove_background,
             remove_background_type=remove_background_type)
         self.validation_data_generator_one_batch = AAEDataGenerator(
             image_paths=self.validation_image_paths,
@@ -103,7 +99,6 @@ class AutoEncoder:
             vertical_shake_power=vertical_shake_power,
             horizontal_shake_power=horizontal_shake_power,
             add_noise=denoise,
-            remove_background=remove_background,
             remove_background_type=remove_background_type)
 
     def fit(self):
@@ -141,19 +136,17 @@ class AutoEncoder:
         print(f'model forwarding time : {forwarding_time:.2f} ms')
 
     @tf.function
-    def compute_gradient(self, model, optimizer, batch_x, y_true, batch_mask, use_mask):
+    def compute_gradient(self, model, optimizer, batch_x, y_true, batch_mask):
         with tf.GradientTape() as tape:
             y_pred = model(batch_x, training=True)
             abs_error = tf.abs(y_true - y_pred)
             mae = tf.reduce_mean(abs_error)
             loss = tf.keras.backend.binary_crossentropy(y_true, y_pred)
-            if use_mask:
-                obj_loss = loss * batch_mask
-                no_obj_mask = tf.where(batch_mask == 0.0, 1.0, 0.0)
-                ignore_mask = tf.where(abs_error < 0.005, 0.0, 1.0) * no_obj_mask
-                no_obj_loss = loss * ignore_mask * tf.clip_by_value(abs_error, 0.25, 1.0)
-                loss = obj_loss + no_obj_loss
-            loss = tf.reduce_mean(loss, axis=0)
+            obj_loss = loss * batch_mask
+            no_obj_mask = tf.where(batch_mask == 0.0, 1.0, 0.0)
+            ignore_mask = tf.where(abs_error < 0.005, 0.0, 1.0) * no_obj_mask
+            no_obj_loss = loss * ignore_mask * tf.clip_by_value(abs_error, 0.25, 1.0)
+            loss = tf.reduce_mean(obj_loss + no_obj_loss, axis=0)
         gradients = tape.gradient(loss, model.trainable_variables)
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
         return mae
@@ -173,7 +166,7 @@ class AutoEncoder:
             for ae_x, ae_y, ae_mask in self.train_data_generator:
                 lr_scheduler.update(optimizer, iteration_count)
                 iteration_count += 1
-                loss = self.compute_gradient(self.ae, optimizer, ae_x, ae_y, ae_mask, self.remove_background)
+                loss = self.compute_gradient(self.ae, optimizer, ae_x, ae_y, ae_mask)
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='\t')
                 if self.training_view:
                     self.training_view_function()

@@ -29,7 +29,6 @@ if __name__ == '__main__':
         batch_size=32,
         iterations=200000,
         training_view=True,
-        remove_background=False,
         remove_background_type='black',
         vertical_shake_power=0,
         horizontal_shake_power=0,
