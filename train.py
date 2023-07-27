@@ -1,7 +1,7 @@
 """
 Authors : inzapp
 
-Github url : https://github.com/inzapp/auto-encoder
+Github url : https://github.com/inzapp/background-remover
 
 Copyright 2021 inzapp Authors. All Rights Reserved.
 
@@ -21,16 +21,16 @@ from ae import AutoEncoder
 
 if __name__ == '__main__':
     AutoEncoder(
-        train_image_path=r'C:\inz\train_data\mnist\train',
-        validation_image_path=r'C:\inz\train_data\mnist\train',
-        input_shape=(64, 64, 1),
+        train_image_path=r'/train_data/coco/train',
+        validation_image_path=r'/train_data/coco/validation',
+        input_shape=(128, 128, 1),
         lr=0.001,
         warm_up=0.5,
         batch_size=32,
         iterations=200000,
         training_view=True,
         remove_background=False,
-        remove_background_type='blur',
-        vertical_shake_power=21,
-        horizontal_shake_power=21,
+        remove_background_type='black',
+        vertical_shake_power=0,
+        horizontal_shake_power=0,
         denoise=False).fit()

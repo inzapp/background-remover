@@ -1,7 +1,7 @@
 """
 Authors : inzapp
 
-Github url : https://github.com/inzapp/aae
+Github url : https://github.com/inzapp/background-remover
 
 Copyright 2021 inzapp Authors. All Rights Reserved.
 
