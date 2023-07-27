@@ -23,13 +23,11 @@ if __name__ == '__main__':
     AutoEncoder(
         train_image_path=r'/train_data/coco/train',
         validation_image_path=r'/train_data/coco/validation',
+        remove_background_type='black',
         input_shape=(128, 128, 1),
         lr=0.001,
         warm_up=0.5,
-        batch_size=32,
+        batch_size=8,
         iterations=200000,
-        training_view=True,
-        remove_background_type='black',
-        vertical_shake_power=0,
-        horizontal_shake_power=0,
-        denoise=False).fit()
+        denoise=False,
+        training_view=True).fit()

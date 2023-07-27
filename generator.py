@@ -29,15 +29,11 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
                  image_paths,
                  input_shape,
                  batch_size,
-                 vertical_shake_power=0,
-                 horizontal_shake_power=0,
                  add_noise=False,
                  remove_background_type='black'):
         self.image_paths = image_paths
         self.input_shape = input_shape
         self.batch_size = batch_size
-        self.vertical_shake_power = vertical_shake_power
-        self.horizontal_shake_power = horizontal_shake_power
         self.add_noise = add_noise
         self.remove_background_type = remove_background_type
         self.pool = ThreadPoolExecutor(8)
@@ -162,7 +158,7 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
     def random_adjust(self, img):
         if np.random.uniform() > 0.5:
             return img
-        adjust_opts = ['noise', 'blur', 'motion_blur']
+        adjust_opts = ['noise', 'blur']
         np.random.shuffle(adjust_opts)
         for i in range(len(adjust_opts)):
             img = self.adjust(img, adjust_opts[i])
@@ -180,27 +176,5 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
                 img = cv2.blur(img, (2, 2))
             else:
                 img = cv2.GaussianBlur(img, (3, 3), sigmaX=0)
-        elif adjust_type == 'motion_blur' and (self.vertical_shake_power > 1 or self.horizontal_shake_power > 1):
-            size = None
-            kernel = None
-            if self.vertical_shake_power > 1 and self.horizontal_shake_power > 1:
-                if np.random.uniform() > 0.5:
-                    size = np.random.randint(1, self.vertical_shake_power)
-                    kernel = np.zeros((size, size))
-                    kernel[:, int((size - 1) / 2)] = np.ones(size)
-                else:
-                    size = np.random.randint(1, self.horizontal_shake_power)
-                    kernel = np.zeros((size, size))
-                    kernel[int((size - 1) / 2), :] = np.ones(size)
-            elif self.vertical_shake_power > 1:
-                size = np.random.randint(1, self.vertical_shake_power)
-                kernel = np.zeros((size, size))
-                kernel[:, int((size - 1) / 2)] = np.ones(size)
-            elif self.horizontal_shake_power > 1:
-                size = np.random.randint(1, self.horizontal_shake_power)
-                kernel = np.zeros((size, size))
-                kernel[int((size - 1) / 2), :] = np.ones(size)
-            kernel /= size
-            img = cv2.filter2D(img, -1, kernel)
         return img
 

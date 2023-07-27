@@ -45,9 +45,7 @@ class AutoEncoder:
                  training_view=False,
                  pretrained_model_path='',
                  denoise=False,
-                 remove_background_type=None,
-                 vertical_shake_power=0,
-                 horizontal_shake_power=0):
+                 remove_background_type=None):
         self.lr = lr
         self.warm_up = warm_up
         self.iterations = iterations
@@ -80,24 +78,18 @@ class AutoEncoder:
             image_paths=self.train_image_paths,
             input_shape=input_shape,
             batch_size=batch_size,
-            vertical_shake_power=vertical_shake_power,
-            horizontal_shake_power=horizontal_shake_power,
             add_noise=denoise,
             remove_background_type=remove_background_type)
         self.validation_data_generator = AAEDataGenerator(
             image_paths=self.validation_image_paths,
             input_shape=input_shape,
             batch_size=batch_size,
-            vertical_shake_power=vertical_shake_power,
-            horizontal_shake_power=horizontal_shake_power,
             add_noise=denoise,
             remove_background_type=remove_background_type)
         self.validation_data_generator_one_batch = AAEDataGenerator(
             image_paths=self.validation_image_paths,
             input_shape=input_shape,
             batch_size=1,
-            vertical_shake_power=vertical_shake_power,
-            horizontal_shake_power=horizontal_shake_power,
             add_noise=denoise,
             remove_background_type=remove_background_type)
 
