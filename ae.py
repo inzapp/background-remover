@@ -145,9 +145,9 @@ class AutoEncoder:
 
     def evaluate(self, generator):
         loss_sum = 0.0
-        for ae_x, ae_y, ae_mask in tqdm(generator):
-            y = self.graph_forward(self.ae, ae_x)
-            loss_sum += np.mean(np.abs(ae_y[0] - y[0]))
+        for batch_x, batch_y, batch_m in tqdm(generator):
+            y = self.graph_forward(self.ae, batch_x)
+            loss_sum += np.mean(np.abs(batch_y[0] - y[0]))
         return float(loss_sum / len(generator))
 
     def train(self):
@@ -155,10 +155,10 @@ class AutoEncoder:
         optimizer = tf.keras.optimizers.RMSprop(lr=self.lr)
         lr_scheduler = LRScheduler(lr=self.lr, iterations=self.iterations, warm_up=self.warm_up, policy='step')
         while True:
-            for ae_x, ae_y, ae_mask in self.train_data_generator:
+            for batch_x, batch_y, batch_m in self.train_data_generator:
                 lr_scheduler.update(optimizer, iteration_count)
                 iteration_count += 1
-                loss = self.compute_gradient(self.ae, optimizer, ae_x, ae_y, ae_mask)
+                loss = self.compute_gradient(self.ae, optimizer, batch_x, batch_y, batch_m)
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='\t')
                 if self.training_view:
                     self.training_view_function()
@@ -240,3 +240,4 @@ class AutoEncoder:
             img = self.resize(img, (input_shape[1], input_shape[0]))
             cv2.imshow(win_name, np.concatenate((img.reshape(input_shape), output_image), axis=1))
             cv2.waitKey(1)
+

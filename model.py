@@ -105,7 +105,7 @@ class Model:
         x = self.conv2d(x, filters=filters * 1, kernel_size=3)
         if self.input_layer_concat:
             x = self.concat([x, input_layer])
-        x = self.segmentation(x)
+        x = self.segmentation_layer(x)
         self.ae = tf.keras.models.Model(input_layer, x)
         self.ae.save('model.h5', include_optimizer=False)
         return self.ae
@@ -133,7 +133,7 @@ class Model:
     def concat(self, layers):
         return tf.keras.layers.Concatenate()(layers)
 
-    def segmentation(self, x, name='output'):
+    def segmentation_layer(self, x, name='output'):
         x = tf.keras.layers.Conv2D(
             filters=self.input_shape[-1],
             padding='same',
@@ -142,11 +142,8 @@ class Model:
             activation='sigmoid')(x)
         return tf.keras.layers.Flatten(name=name)(x)
 
-    def loss(self, y_true, y_pred):
-        return -tf.math.log((1.0 + tf.keras.backend.epsilon()) - tf.abs(y_true - y_pred))
-
     def save(self, path, iteration_count, loss):
-        self.ae.save(f'{path}/ae_{iteration_count}_iter_{loss:.4f}_loss.h5', include_optimizer=False)
+        self.ae.save(f'{path}/model_{iteration_count}_iter_{loss:.4f}_loss.h5', include_optimizer=False)
 
     def summary(self):
         self.ae.summary()
