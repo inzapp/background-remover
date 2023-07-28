@@ -30,4 +30,4 @@ if __name__ == '__main__':
         batch_size=4,
         iterations=200000,
         denoise=False,
-        training_view=True).train()
+        training_view=False).train()
