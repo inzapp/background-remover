@@ -17,10 +17,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-from ae import AutoEncoder
+from background_remover import BackgroundRemover
 
 if __name__ == '__main__':
-    AutoEncoder(
+    BackgroundRemover(
         train_image_path=r'/train_data/coco/train',
         validation_image_path=r'/train_data/coco/validation',
         background_type='black',
