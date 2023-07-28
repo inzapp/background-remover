@@ -30,15 +30,15 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
                  input_shape,
                  batch_size,
                  add_noise=False,
-                 remove_background_type='black'):
+                 background_type='black'):
         self.image_paths = image_paths
         self.input_shape = input_shape
         self.batch_size = batch_size
         self.add_noise = add_noise
-        self.remove_background_type = remove_background_type
+        self.background_type = background_type
         self.pool = ThreadPoolExecutor(8)
         self.img_index = 0
-        assert self.remove_background_type in ['blur', 'black', 'gray', 'white', 'log', 'ada', 'dark']
+        assert self.background_type in ['blur', 'black', 'gray', 'white', 'log', 'ada', 'dark']
 
     def __getitem__(self, index):
         fs = []
@@ -70,15 +70,15 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
         raw = img.copy()
         background_removed = None
         height, width = raw.shape[:2]
-        if self.remove_background_type == 'blur':
+        if self.background_type == 'blur':
             background_removed = cv2.GaussianBlur(img, (0, 0), sigmaX=5)
-        elif self.remove_background_type in ['black', 'gray', 'white']:
+        elif self.background_type in ['black', 'gray', 'white']:
             background_removed = np.zeros(shape=self.input_shape, dtype=np.uint8)
-            if self.remove_background_type == 'gray':
+            if self.background_type == 'gray':
                 background_removed += 128
-            elif self.remove_background_type == 'white':
+            elif self.background_type == 'white':
                 background_removed += 255
-        elif self.remove_background_type == 'log':
+        elif self.background_type == 'log':
             if self.input_shape[-1] == 3:
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             img = cv2.GaussianBlur(img, (0, 0), sigmaX=2)
@@ -89,13 +89,13 @@ class AAEDataGenerator(tf.keras.utils.Sequence):
             background_removed = laplacian
             if self.input_shape[-1] == 3:
                 background_removed = cv2.cvtColor(background_removed, cv2.COLOR_GRAY2BGR)
-        elif self.remove_background_type == 'ada':
+        elif self.background_type == 'ada':
             if self.input_shape[-1] == 3:
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             background_removed = cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 21, -3)
             if self.input_shape[-1] == 3:
                 background_removed = cv2.cvtColor(background_removed, cv2.COLOR_GRAY2BGR)
-        elif self.remove_background_type == 'dark':
+        elif self.background_type == 'dark':
             background_removed = np.asarray(img).astype('float32') * 0.3
             background_removed = np.clip(background_removed, 0.0, 255.0).astype('uint8')
 

@@ -23,7 +23,7 @@ if __name__ == '__main__':
     AutoEncoder(
         train_image_path=r'/train_data/coco/train',
         validation_image_path=r'/train_data/coco/validation',
-        remove_background_type='black',
+        background_type='black',
         input_shape=(128, 128, 1),
         lr=0.001,
         warm_up=0.5,

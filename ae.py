@@ -45,7 +45,7 @@ class AutoEncoder:
                  training_view=False,
                  pretrained_model_path='',
                  denoise=False,
-                 remove_background_type=None):
+                 background_type=None):
         self.lr = lr
         self.warm_up = warm_up
         self.iterations = iterations
@@ -55,10 +55,10 @@ class AutoEncoder:
         self.batch_size = batch_size
         self.checkpoint_path = checkpoint_path
         self.denoise = denoise
-        self.remove_background_type = remove_background_type
+        self.background_type = background_type
         self.view_flag = 1
 
-        use_input_layer_concat = self.remove_background_type in ['black', 'gray', 'white', 'dark'] and not self.denoise
+        use_input_layer_concat = self.background_type in ['black', 'gray', 'white', 'dark'] and not self.denoise
         self.model = Model(input_shape=input_shape, lr=lr, input_layer_concat=use_input_layer_concat)
         if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
             print(f'\npretrained model path : {[pretrained_model_path]}')
@@ -79,19 +79,19 @@ class AutoEncoder:
             input_shape=input_shape,
             batch_size=batch_size,
             add_noise=denoise,
-            remove_background_type=remove_background_type)
+            background_type=background_type)
         self.validation_data_generator = AAEDataGenerator(
             image_paths=self.validation_image_paths,
             input_shape=input_shape,
             batch_size=batch_size,
             add_noise=denoise,
-            remove_background_type=remove_background_type)
+            background_type=background_type)
         self.validation_data_generator_one_batch = AAEDataGenerator(
             image_paths=self.validation_image_paths,
             input_shape=input_shape,
             batch_size=1,
             add_noise=denoise,
-            remove_background_type=remove_background_type)
+            background_type=background_type)
 
     def fit(self):
         self.model.summary()
