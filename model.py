@@ -44,64 +44,54 @@ class Model:
         f0 = x
         x = self.max_pool(x)
 
-        x = self.drop_filter(x, 0.125)
         x = self.conv2d(x, filters=filters * 2, kernel_size=3)
         f1 = x
         x = self.max_pool(x)
         
-        x = self.drop_filter(x, 0.125)
         x = self.conv2d(x, filters=filters * 4, kernel_size=3)
         x = self.conv2d(x, filters=filters * 4, kernel_size=3)
         f2 = x
         x = self.max_pool(x)
 
-        x = self.drop_filter(x, 0.125)
         x = self.conv2d(x, filters=filters * 8, kernel_size=3)
         x = self.conv2d(x, filters=filters * 8, kernel_size=3)
         f3 = x
         x = self.max_pool(x)
 
-        x = self.drop_filter(x, 0.125)
         x = self.conv2d(x, filters=filters * 16, kernel_size=3)
         x = self.conv2d(x, filters=filters * 16, kernel_size=3)
         f4 = x
         x = self.max_pool(x)
 
-        x = self.drop_filter(x, 0.125)
         x = self.conv2d(x, filters=filters * 32, kernel_size=3)
         x = self.conv2d(x, filters=filters * 32, kernel_size=3)
         x = self.conv2d(x, filters=filters * 16, kernel_size=1)
         x = self.upsampling(x)
 
         x = self.add([x, f4])
-        x = self.drop_filter(x, 0.125)
         x = self.conv2d(x, filters=filters * 16, kernel_size=3)
         x = self.conv2d(x, filters=filters * 16, kernel_size=3)
         x = self.conv2d(x, filters=filters * 8, kernel_size=1)
         x = self.upsampling(x)
 
         x = self.add([x, f3])
-        x = self.drop_filter(x, 0.125)
         x = self.conv2d(x, filters=filters * 8, kernel_size=3)
         x = self.conv2d(x, filters=filters * 8, kernel_size=3)
         x = self.conv2d(x, filters=filters * 4, kernel_size=1)
         x = self.upsampling(x)
 
         x = self.add([x, f2])
-        x = self.drop_filter(x, 0.125)
         x = self.conv2d(x, filters=filters * 4, kernel_size=3)
         x = self.conv2d(x, filters=filters * 4, kernel_size=3)
         x = self.conv2d(x, filters=filters * 2, kernel_size=1)
         x = self.upsampling(x)
 
         x = self.add([x, f1])
-        x = self.drop_filter(x, 0.125)
         x = self.conv2d(x, filters=filters * 2, kernel_size=3)
         x = self.conv2d(x, filters=filters * 1, kernel_size=1)
         x = self.upsampling(x)
 
         x = self.add([x, f0])
-        x = self.drop_filter(x, 0.125)
         x = self.conv2d(x, filters=filters * 1, kernel_size=3)
         if self.input_layer_concat:
             x = self.concat([x, input_layer])
@@ -120,9 +110,6 @@ class Model:
 
     def max_pool(self, x):
         return tf.keras.layers.MaxPool2D()(x)
-
-    def drop_filter(self, x, rate):
-        return tf.keras.layers.SpatialDropout2D(rate)(x)
     
     def upsampling(self, x):
         return tf.keras.layers.UpSampling2D()(x)
