@@ -21,10 +21,11 @@ import cv2
 import os
 import numpy as np
 import tensorflow as tf
+
 from concurrent.futures.thread import ThreadPoolExecutor
 
 
-class AAEDataGenerator(tf.keras.utils.Sequence):
+class DataGenerator(tf.keras.utils.Sequence):
     def __init__(self,
                  image_paths,
                  input_shape,

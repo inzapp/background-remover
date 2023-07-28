@@ -28,10 +28,10 @@ from tqdm import tqdm
 from time import time
 from model import Model
 from lr_scheduler import LRScheduler
-from generator import AAEDataGenerator
+from generator import DataGenerator
 
 
-class AutoEncoder:
+class BackgroundRemover:
     def __init__(self,
                  train_image_path=None,
                  input_shape=(128, 128, 1),
@@ -41,7 +41,6 @@ class AutoEncoder:
                  iterations=100000,
                  validation_split=0.2,
                  validation_image_path='',
-                 checkpoint_path='checkpoints',
                  training_view=False,
                  pretrained_model_path='',
                  denoise=False,
@@ -53,9 +52,9 @@ class AutoEncoder:
         self.live_view_previous_time = time()
         self.input_shape = input_shape
         self.batch_size = batch_size
-        self.checkpoint_path = checkpoint_path
         self.denoise = denoise
         self.background_type = background_type
+        self.checkpoint_path = 'checkpoint'
         self.view_flag = 1
 
         use_input_layer_concat = self.background_type in ['black', 'gray', 'white', 'dark'] and not self.denoise
@@ -74,32 +73,24 @@ class AutoEncoder:
             self.train_image_paths, self.validation_image_paths = self.init_image_paths(train_image_path, validation_split=validation_split)
 
         os.makedirs(self.checkpoint_path, exist_ok=True)
-        self.train_data_generator = AAEDataGenerator(
+        self.train_data_generator = DataGenerator(
             image_paths=self.train_image_paths,
             input_shape=input_shape,
             batch_size=batch_size,
             add_noise=denoise,
             background_type=background_type)
-        self.validation_data_generator = AAEDataGenerator(
+        self.validation_data_generator = DataGenerator(
             image_paths=self.validation_image_paths,
             input_shape=input_shape,
             batch_size=batch_size,
             add_noise=denoise,
             background_type=background_type)
-        self.validation_data_generator_one_batch = AAEDataGenerator(
+        self.validation_data_generator_one_batch = DataGenerator(
             image_paths=self.validation_image_paths,
             input_shape=input_shape,
             batch_size=1,
             add_noise=denoise,
             background_type=background_type)
-
-    def fit(self):
-        self.model.summary()
-        self.check_forwarding_time()
-        print(f'\ntrain on {len(self.train_image_paths)} samples.')
-        print(f'validate on {len(self.validation_image_paths)} samples.')
-        print('start training')
-        self.train()
 
     @tf.function
     def graph_forward(self, model, x):
@@ -151,6 +142,11 @@ class AutoEncoder:
         return float(loss_sum / len(generator))
 
     def train(self):
+        self.model.summary()
+        self.check_forwarding_time()
+        print(f'\ntrain on {len(self.train_image_paths)} samples.')
+        print(f'validate on {len(self.validation_image_paths)} samples.')
+        print('start training')
         iteration_count = 0
         optimizer = tf.keras.optimizers.RMSprop(lr=self.lr)
         lr_scheduler = LRScheduler(lr=self.lr, iterations=self.iterations, warm_up=self.warm_up, policy='step')

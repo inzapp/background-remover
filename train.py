@@ -27,7 +27,7 @@ if __name__ == '__main__':
         input_shape=(128, 128, 1),
         lr=0.001,
         warm_up=0.5,
-        batch_size=8,
+        batch_size=4,
         iterations=200000,
         denoise=False,
-        training_view=True).fit()
+        training_view=True).train()
