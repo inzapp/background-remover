@@ -33,18 +33,18 @@ from generator import DataGenerator
 
 class BackgroundRemover:
     def __init__(self,
-                 train_image_path=None,
+                 pretrained_model_path='',
+                 train_image_path='',
+                 validation_image_path='',
                  input_shape=(128, 128, 1),
                  lr=0.001,
                  warm_up=0.5,
                  batch_size=32,
                  iterations=100000,
                  validation_split=0.2,
-                 validation_image_path='',
-                 training_view=False,
-                 pretrained_model_path='',
+                 background_type='black',
                  denoise=False,
-                 background_type=None):
+                 training_view=False):
         self.lr = lr
         self.warm_up = warm_up
         self.iterations = iterations
