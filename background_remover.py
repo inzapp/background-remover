@@ -27,8 +27,9 @@ from glob import glob
 from tqdm import tqdm
 from time import time
 from model import Model
-from lr_scheduler import LRScheduler
 from generator import DataGenerator
+from lr_scheduler import LRScheduler
+from ace import AdaptiveCrossentropy
 
 
 class BackgroundRemover:
@@ -124,12 +125,12 @@ class BackgroundRemover:
             y_pred = model(batch_x, training=True)
             abs_error = tf.abs(y_true - y_pred)
             mae = tf.reduce_mean(abs_error)
-            loss = tf.keras.backend.binary_crossentropy(y_true, y_pred)
-            obj_loss = loss * batch_mask
-            no_obj_mask = tf.where(batch_mask == 0.0, 1.0, 0.0)
-            ignore_mask = tf.where(abs_error < 0.005, 0.0, 1.0) * no_obj_mask
-            no_obj_loss = loss * ignore_mask * tf.clip_by_value(abs_error, 0.25, 1.0)
-            loss = tf.reduce_mean(obj_loss + no_obj_loss, axis=0)
+            ace = AdaptiveCrossentropy()(y_true, y_pred)
+            pos_loss = ace * batch_mask
+            neg_mask = tf.where(batch_mask == 0.0, 1.0, 0.0)
+            ign_mask = tf.where(abs_error < 0.005, 0.0, 1.0) * neg_mask
+            neg_loss = ace * ign_mask * tf.clip_by_value(abs_error, 0.25, 1.0)
+            loss = tf.reduce_mean(pos_loss + neg_loss, axis=0)
         gradients = tape.gradient(loss, model.trainable_variables)
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
         return mae
