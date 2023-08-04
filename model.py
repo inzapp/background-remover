@@ -101,14 +101,6 @@ class Model:
         self.ae.save('model.h5', include_optimizer=False)
         return self.ae
 
-    def conv2d(self, x, filters, kernel_size):
-        return tf.keras.layers.Conv2D(
-            filters=filters,
-            padding='same',
-            kernel_size=kernel_size,
-            kernel_initializer='glorot_normal',
-            activation='relu')(x)
-
     def max_pool(self, x):
         return tf.keras.layers.MaxPool2D()(x)
     
@@ -121,14 +113,24 @@ class Model:
     def concat(self, layers):
         return tf.keras.layers.Concatenate()(layers)
 
+    def kernel_initializer(self):
+        return tf.keras.initializers.glorot_normal()
+
+    def conv2d(self, x, filters, kernel_size):
+        return tf.keras.layers.Conv2D(
+            filters=filters,
+            padding='same',
+            kernel_size=kernel_size,
+            kernel_initializer=self.kernel_initializer(),
+            activation='relu')(x)
+
     def segmentation_layer(self, x, name='output'):
-        x = tf.keras.layers.Conv2D(
+        return tf.keras.layers.Conv2D(
             filters=self.input_shape[-1],
             padding='same',
             kernel_size=1,
-            kernel_initializer='glorot_normal',
+            kernel_initializer=self.kernel_initializer(),
             activation='sigmoid')(x)
-        return tf.keras.layers.Flatten(name=name)(x)
 
     def save(self, path, name, iteration_count, loss, verbose):
         save_path = f'{path}/{name}_{iteration_count}_iter_{loss:.4f}_loss.h5'

@@ -49,75 +49,15 @@ class DataGenerator(tf.keras.utils.Sequence):
         for f in fs:
             img, path = f.result()
             img = cv2.resize(img, (self.input_shape[1], self.input_shape[0]))
-            raw = img.copy()
+            batch_y.append(img.reshape(self.input_shape))
             if self.add_noise:
                 img = self.random_adjust(img)
-            masked_raw_img = self.remove_background(raw, path)
             batch_x.append(img.reshape(self.input_shape))
-            batch_y.append(masked_raw_img.reshape(-1))
-            batch_m.append(self.make_obj_mask(path))
+            batch_m.append(self.make_obj_mask(path).reshape(self.input_shape))
         batch_x = np.asarray(batch_x).reshape((self.batch_size,) + self.input_shape).astype('float32') / 255.0
-        batch_y = np.asarray(batch_y).reshape((self.batch_size, int(np.prod(self.input_shape)))).astype('float32') / 255.0
-        batch_m = np.asarray(batch_m).reshape((self.batch_size, int(np.prod(self.input_shape)))).astype('float32') / 255.0
+        batch_y = np.asarray(batch_y).reshape((self.batch_size,) + self.input_shape).astype('float32') / 255.0
+        batch_m = np.asarray(batch_m).reshape((self.batch_size,) + self.input_shape).astype('float32') / 255.0
         return batch_x, batch_y, batch_m
-
-    def remove_background(self, img, img_path):
-        label_path = f'{img_path[:-4]}.txt'
-        if not (os.path.exists(label_path) and os.path.isfile(label_path)):
-            print('\nlabel not found : [{label_path}]')
-            return img
-
-        raw = img.copy()
-        background_removed = None
-        height, width = raw.shape[:2]
-        if self.background_type == 'blur':
-            background_removed = cv2.GaussianBlur(img, (0, 0), sigmaX=5)
-        elif self.background_type in ['black', 'gray', 'white']:
-            background_removed = np.zeros(shape=self.input_shape, dtype=np.uint8)
-            if self.background_type == 'gray':
-                background_removed += 128
-            elif self.background_type == 'white':
-                background_removed += 255
-        elif self.background_type == 'log':
-            if self.input_shape[-1] == 3:
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            img = cv2.GaussianBlur(img, (0, 0), sigmaX=2)
-            laplacian = cv2.Laplacian(img, ddepth=cv2.CV_32F, ksize=1)
-            laplacian = laplacian / np.max(laplacian)
-            laplacian = np.where(laplacian > 25.5 / 255.0, 1.0, 0.0)
-            laplacian = np.clip(laplacian * 255.0, 0.0, 255.0).astype('uint8')
-            background_removed = laplacian
-            if self.input_shape[-1] == 3:
-                background_removed = cv2.cvtColor(background_removed, cv2.COLOR_GRAY2BGR)
-        elif self.background_type == 'ada':
-            if self.input_shape[-1] == 3:
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            background_removed = cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 21, -3)
-            if self.input_shape[-1] == 3:
-                background_removed = cv2.cvtColor(background_removed, cv2.COLOR_GRAY2BGR)
-        elif self.background_type == 'dark':
-            background_removed = np.asarray(img).astype('float32') * 0.3
-            background_removed = np.clip(background_removed, 0.0, 255.0).astype('uint8')
-
-        with open(label_path, 'rt') as f:
-            lines = f.readlines()
-        for line in lines:
-            class_index, cx, cy, w, h = list(map(float, line.split()))
-            w += w * 0.1
-            h += h * 0.1
-            x1 = cx - w * 0.5
-            x2 = cx + w * 0.5
-            y1 = cy - h * 0.5
-            y2 = cy + h * 0.5
-            x1, x2, y1, y2 = np.clip(np.array([x1, x2, y1, y2], dtype=np.float32), 0.0, 1.0)
-            x1 = int(x1 * width)
-            x2 = int(x2 * width)
-            y1 = int(y1 * height)
-            y2 = int(y2 * height)
-            for i in range(y1, y2):
-                for j in range(x1, x2):
-                    background_removed[i][j] = raw[i][j]
-        return background_removed
 
     def make_obj_mask(self, path):
         label_path = f'{path[:-4]}.txt'

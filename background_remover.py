@@ -150,14 +150,15 @@ class BackgroundRemover:
         print(f'model forwarding time : {forwarding_time:.2f} ms')
 
     @tf.function
-    def compute_gradient(self, model, optimizer, batch_x, y_true, batch_mask):
+    def compute_gradient(self, model, optimizer, x, y, m):
         with tf.GradientTape() as tape:
-            y_pred = model(batch_x, training=True)
-            abs_error = tf.abs(y_true - y_pred)
+            y_pred = model(x, training=True)
+            y = x * m
+            abs_error = tf.abs(y - y_pred)
             mae = tf.reduce_mean(abs_error)
-            ace = AdaptiveCrossentropy()(y_true, y_pred)
-            pos_loss = ace * batch_mask
-            neg_mask = tf.where(batch_mask == 0.0, 1.0, 0.0)
+            ace = AdaptiveCrossentropy()(y, y_pred)
+            pos_loss = ace * m
+            neg_mask = tf.where(m == 0.0, 1.0, 0.0)
             ign_mask = tf.where(abs_error < 0.005, 0.0, 1.0) * neg_mask
             neg_loss = ace * ign_mask * tf.clip_by_value(abs_error, 0.25, 1.0)
             loss = tf.reduce_mean(pos_loss + neg_loss, axis=0)
