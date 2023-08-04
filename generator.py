@@ -52,10 +52,9 @@ class DataGenerator(tf.keras.utils.Sequence):
             raw = img.copy()
             if self.add_noise:
                 img = self.random_adjust(img)
-            img = self.remove_background(raw, path)
-            x = np.asarray(img).reshape(self.input_shape)
-            batch_x.append(raw)
-            batch_y.append(x.reshape(-1))
+            masked_raw_img = self.remove_background(raw, path)
+            batch_x.append(img.reshape(self.input_shape))
+            batch_y.append(masked_raw_img.reshape(-1))
             batch_m.append(self.make_obj_mask(path))
         batch_x = np.asarray(batch_x).reshape((self.batch_size,) + self.input_shape).astype('float32') / 255.0
         batch_y = np.asarray(batch_y).reshape((self.batch_size, int(np.prod(self.input_shape)))).astype('float32') / 255.0
