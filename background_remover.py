@@ -70,9 +70,13 @@ class BackgroundRemover:
 
         use_input_layer_concat = self.config.background_type in ['black', 'gray', 'white', 'dark'] and not self.config.denoise
         self.model = Model(input_shape=self.config.input_shape, lr=self.config.lr, input_layer_concat=use_input_layer_concat)
-        if os.path.exists(self.config.pretrained_model_path) and os.path.isfile(self.config.pretrained_model_path):
-            print(f'\npretrained model path : {[self.config.pretrained_model_path]}')
-            self.ae, self.config.input_shape = self.model.load(self.config.pretrained_model_path)
+        if self.config.pretrained_model_path != '':
+            if os.path.exists(self.config.pretrained_model_path) and os.path.isfile(self.config.pretrained_model_path):
+                print(f'\npretrained model path : [{self.config.pretrained_model_path}]')
+                self.ae, self.config.input_shape = self.model.load(self.config.pretrained_model_path)
+            else:
+                print(f'\npretrained model not found : [{self.config.pretrained_model_path}]')
+                exit(0)
         else:
             self.ae = self.model.build()
 
@@ -264,7 +268,8 @@ class BackgroundRemover:
 
     def predict_video(self, path, width=0, height=0):
         if not path.startswith('rtsp://') and not (os.path.exists(path) and os.path.isfile(path)):
-            Util.print_error_exit(f'video not found. video path : {path}')
+            print(f'video not found. video path : {path}')
+            return
         cap = cv2.VideoCapture(path)
         input_height, input_width, input_channel = self.ae.input_shape[1:]
         view_width, view_height = 0, 0
@@ -272,18 +277,22 @@ class BackgroundRemover:
             view_width, view_height = width, height
         else:
             view_width, view_height = input_width, input_height
+        view_size = (view_width, view_height)
+        view_shape = (view_height, view_width, input_channel)
         while True:
             frame_exist, bgr = cap.read()
             if not frame_exist:
                 print('frame not exists')
                 break
-            bgr_resized = self.resize(bgr, (view_width, view_height))
-            img = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY) if self.ae.input.shape[-1] == 1 else cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-            img, output_image = self.predict(img)
-            img = self.resize(img, (view_width, view_height))
-            output_image = self.resize(output_image, (view_width, view_height))
-            img = np.asarray(img).reshape(img.shape[:2] + (input_channel,))
-            cv2.imshow('video', np.concatenate((bgr_resized, output_image), axis=1))
+            img_color_converted = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY if input_channel == 1 else cv2.COLOR_BGR2RGB)
+            img_x = self.resize(img_color_converted, (input_width, input_height))
+            _, output_image = self.predict(img_x)
+            img_view_input = np.asarray(self.resize(img_color_converted, view_size)).reshape(view_shape)
+            img_view_output = np.asarray(self.resize(output_image, view_size)).reshape(view_shape)
+            if input_channel == 3:
+                img_view_input = cv2.cvtColor(img_view_input, cv2.COLOR_RGB2BGR)
+                img_view_output = cv2.cvtColor(img_view_output, cv2.COLOR_RGB2BGR)
+            cv2.imshow('video', np.concatenate((img_view_input, img_view_output), axis=1))
             key = cv2.waitKey(1)
             if key == 27:
                 break
