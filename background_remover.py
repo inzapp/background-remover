@@ -32,7 +32,7 @@ from lr_scheduler import LRScheduler
 from ace import AdaptiveCrossentropy
 
 
-class BackgroundRemover:
+class TrainingConfig:
     def __init__(self,
                  pretrained_model_path='',
                  train_image_path='',
@@ -42,56 +42,80 @@ class BackgroundRemover:
                  warm_up=0.5,
                  batch_size=32,
                  iterations=100000,
-                 validation_split=0.2,
                  background_type='black',
                  denoise=False,
                  training_view=False):
+        self.pretrained_model_path = pretrained_model_path
+        self.train_image_path = train_image_path
+        self.validation_image_path = validation_image_path
+        self.input_shape = input_shape
         self.lr = lr
         self.warm_up = warm_up
-        self.iterations = iterations
-        self.training_view = training_view
-        self.live_view_previous_time = time()
-        self.input_shape = input_shape
         self.batch_size = batch_size
-        self.denoise = denoise
+        self.iterations = iterations
         self.background_type = background_type
-        self.checkpoint_path = 'checkpoint'
-        self.view_flag = 1
+        self.denoise = denoise
+        self.training_view = training_view
 
-        use_input_layer_concat = self.background_type in ['black', 'gray', 'white', 'dark'] and not self.denoise
-        self.model = Model(input_shape=input_shape, lr=lr, input_layer_concat=use_input_layer_concat)
-        if os.path.exists(pretrained_model_path) and os.path.isfile(pretrained_model_path):
-            print(f'\npretrained model path : {[pretrained_model_path]}')
-            self.ae, self.input_shape = self.model.load(pretrained_model_path)
-            print(f'input_shape : {self.input_shape}')
+
+class BackgroundRemover:
+    def __init__(self, config):
+        self.config = config
+        self.view_flag = 1
+        self.pretrained_iteration_count = 0
+        self.live_view_previous_time = time()
+        self.checkpoint_path = 'checkpoint'
+
+        use_input_layer_concat = self.config.background_type in ['black', 'gray', 'white', 'dark'] and not self.config.denoise
+        self.model = Model(input_shape=self.config.input_shape, lr=self.config.lr, input_layer_concat=use_input_layer_concat)
+        if os.path.exists(self.config.pretrained_model_path) and os.path.isfile(self.config.pretrained_model_path):
+            print(f'\npretrained model path : {[self.config.pretrained_model_path]}')
+            self.ae, self.config.input_shape = self.model.load(self.config.pretrained_model_path)
         else:
             self.ae = self.model.build()
 
-        if validation_image_path != '':
-            self.train_image_paths, _ = self.init_image_paths(train_image_path)
-            self.validation_image_paths, _ = self.init_image_paths(validation_image_path)
-        elif validation_split > 0.0:
-            self.train_image_paths, self.validation_image_paths = self.init_image_paths(train_image_path, validation_split=validation_split)
+        self.train_image_paths = self.init_image_paths(self.config.train_image_path)
+        self.validation_image_paths = self.init_image_paths(self.config.validation_image_path)
 
         os.makedirs(self.checkpoint_path, exist_ok=True)
         self.train_data_generator = DataGenerator(
             image_paths=self.train_image_paths,
-            input_shape=input_shape,
-            batch_size=batch_size,
-            add_noise=denoise,
-            background_type=background_type)
+            input_shape=self.config.input_shape,
+            batch_size=self.config.batch_size,
+            add_noise=self.config.denoise,
+            background_type=self.config.background_type)
         self.validation_data_generator = DataGenerator(
             image_paths=self.validation_image_paths,
-            input_shape=input_shape,
-            batch_size=batch_size,
-            add_noise=denoise,
-            background_type=background_type)
+            input_shape=self.config.input_shape,
+            batch_size=self.config.batch_size,
+            add_noise=self.config.denoise,
+            background_type=self.config.background_type)
         self.validation_data_generator_one_batch = DataGenerator(
             image_paths=self.validation_image_paths,
-            input_shape=input_shape,
+            input_shape=self.config.input_shape,
             batch_size=1,
-            add_noise=denoise,
-            background_type=background_type)
+            add_noise=self.config.denoise,
+            background_type=self.config.background_type)
+
+    def load_model(self, model_path):
+        if os.path.exists(model_path) and os.path.isfile(model_path):
+            self.pretrained_iteration_count = self.parse_pretrained_iteration_count(model_path)
+            self.ae, self.config.input_shape = self.model.load(model_path)
+        else:
+            print(f'pretrained model not found : {model_path}')
+            exit(0)
+
+    def parse_pretrained_iteration_count(self, pretrained_model_path):
+        iteration_count = 0
+        sp = f'{os.path.basename(pretrained_model_path)[:-3]}'.split('_')
+        for i in range(len(sp)):
+            if sp[i] == 'iter' and i > 0:
+                try:
+                    iteration_count = int(sp[i-1])
+                except:
+                    pass
+                break
+        return iteration_count
 
     @tf.function
     def graph_forward(self, model, x):
@@ -148,33 +172,28 @@ class BackgroundRemover:
         print(f'\ntrain on {len(self.train_image_paths)} samples.')
         print(f'validate on {len(self.validation_image_paths)} samples.')
         print('start training')
-        iteration_count = 0
-        optimizer = tf.keras.optimizers.RMSprop(lr=self.lr)
-        lr_scheduler = LRScheduler(lr=self.lr, iterations=self.iterations, warm_up=self.warm_up, policy='step')
+        iteration_count = self.pretrained_iteration_count
+        optimizer = tf.keras.optimizers.RMSprop(lr=self.config.lr)
+        lr_scheduler = LRScheduler(lr=self.config.lr, iterations=self.config.iterations, warm_up=self.config.warm_up, policy='step')
         while True:
             for batch_x, batch_y, batch_m in self.train_data_generator:
                 lr_scheduler.update(optimizer, iteration_count)
                 iteration_count += 1
                 loss = self.compute_gradient(self.ae, optimizer, batch_x, batch_y, batch_m)
                 print(f'\r[iteration count : {iteration_count:6d}] loss => {loss:.4f}', end='\t')
-                if self.training_view:
+                if self.config.training_view:
                     self.training_view_function()
                 if iteration_count % 5000 == 0:
                     loss = self.evaluate(generator=self.validation_data_generator_one_batch)
                     self.model.save(self.checkpoint_path, iteration_count, loss)
                     print(f'[{iteration_count} iter] val_loss : {loss:.4f}\n')
-                if iteration_count == self.iterations:
+                if iteration_count == self.config.iterations:
                     print('\n\ntrain end successfully')
                     return
 
     @staticmethod
-    def init_image_paths(image_path, validation_split=0.0):
-        all_image_paths = glob(f'{image_path}/**/*.jpg', recursive=True)
-        np.random.shuffle(all_image_paths)
-        num_train_images = int(len(all_image_paths) * (1.0 - validation_split))
-        image_paths = all_image_paths[:num_train_images]
-        validation_image_paths = all_image_paths[num_train_images:]
-        return image_paths, validation_image_paths
+    def init_image_paths(image_path):
+        return glob(f'{image_path}/**/*.jpg', recursive=True)
 
     def resize(self, img, size):
         if img.shape[1] > size[0] or img.shape[0] > size[1]:
@@ -183,29 +202,16 @@ class BackgroundRemover:
             return cv2.resize(img, size, interpolation=cv2.INTER_LINEAR)
 
     def predict(self, img):
-        img = self.resize(img, (self.input_shape[1], self.input_shape[0]))
-        if self.denoise:
+        input_shape = self.ae.input_shape[1:]
+        input_height, input_width, input_channel = input_shape
+        img = self.resize(img, (input_width, input_height))
+        if self.config.denoise:
             img = self.train_data_generator.random_adjust(img)
-        x = np.asarray(img).reshape((1,) + self.input_shape).astype('float32') / 255.0
+        x = np.asarray(img).reshape((1,) + input_shape).astype('float32') / 255.0
         y = self.ae.predict_on_batch(x=x)
-        y = np.asarray(y).reshape(self.input_shape) * 255.0
+        y = np.asarray(y).reshape(input_shape) * 255.0
         decoded_img = np.clip(y, 0.0, 255.0).astype('uint8')
         return img, decoded_img
-
-    def predict_images(self, dataset='validation', path='', width=None, height=None):
-        if type(image_paths) is str:
-            image_paths = glob(image_paths)
-        image_paths = natsort.natsorted(image_paths)
-        with tf.device('/cpu:0'):
-            for path in image_paths:
-                img = cv2.imread(path, cv2.IMREAD_GRAYSCALE if self.input_shape[-1] == 1 else cv2.IMREAD_COLOR)
-                img, output_image = self.predict(img)
-                img = self.resize(img, (self.input_shape[1], self.input_shape[0]))
-                img = np.asarray(img).reshape(img.shape[:2] + (self.input_shape[-1],))
-                cv2.imshow('ae', np.concatenate((img, output_image), axis=1))
-                key = cv2.waitKey(0)
-                if key == 27:
-                    break
 
     def predict_images(self, dataset='validation', path='', width=0, height=0):
         input_height, input_width, input_channel = self.ae.input_shape[1:]
@@ -239,13 +245,16 @@ class BackgroundRemover:
             view_width, view_height = width, height
         else:
             view_width, view_height = input_width, input_height
+        view_size = (view_width, view_height)
+        view_shape = (view_height, view_width, input_channel)
         for path in image_paths:
             print(f'image path : {path}')
             img = cv2.imread(path, cv2.IMREAD_GRAYSCALE if input_channel == 1 else cv2.IMREAD_COLOR)
             img, output_image = self.predict(img)
-            img = self.resize(img, (view_width, view_height))
-            output_image = self.resize(output_image, (view_width, view_height))
-            img = np.asarray(img).reshape(img.shape[:2] + (input_channel,))
+            img = self.resize(img, view_size)
+            output_image = self.resize(output_image, view_size)
+            img = np.asarray(img).reshape(view_shape)
+            output_image = np.asarray(output_image).reshape(view_shape)
             cv2.imshow('ae', np.concatenate((img, output_image), axis=1))
             key = cv2.waitKey(0)
             if key == 27:

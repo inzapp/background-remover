@@ -19,11 +19,11 @@ limitations under the License.
 """
 import argparse
 
-from background_remover import BackgroundRemover
+from background_remover import TrainingConfig, BackgroundRemover
 
 
 if __name__ == '__main__':
-    background_remover = BackgroundRemover(
+    config = TrainingConfig(
         train_image_path=r'/train_data/coco/train',
         validation_image_path=r'/train_data/coco/validation',
         background_type='black',
@@ -44,7 +44,8 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str, default='validation', help='dataset name for prediction. train or validation')
     args = parser.parse_args()
     if args.model != '':
-        background_remover.pretrained_model_path = args.model
+        config.pretrained_model_path = args.model
+    background_remover = BackgroundRemover(config)
     if args.predict:
         if args.path.endswith('.mp4') or args.path.startswith('rtsp://'):
             background_remover.predict_video(path=args.path, width=args.width, height=args.height)
