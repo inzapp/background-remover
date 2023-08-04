@@ -192,10 +192,7 @@ class BackgroundRemover:
         decoded_img = np.clip(y, 0.0, 255.0).astype('uint8')
         return img, decoded_img
 
-    def predict_images(self, image_paths):
-        """
-        Equal to the evaluate function. image paths are required.
-        """
+    def predict_images(self, dataset='validation', path='', width=None, height=None):
         if type(image_paths) is str:
             image_paths = glob(image_paths)
         image_paths = natsort.natsorted(image_paths)
@@ -210,11 +207,77 @@ class BackgroundRemover:
                 if key == 27:
                     break
 
-    def predict_train_images(self):
-        self.predict_images(self.train_image_paths)
+    def predict_images(self, dataset='validation', path='', width=0, height=0):
+        input_height, input_width, input_channel = self.ae.input_shape[1:]
+        if path != '':
+            if not os.path.exists(path):
+                print(f'path not exists : [{path}]')
+                return
+            if os.path.isfile(path):
+                if path.endswith('.jpg'):
+                    image_paths = [path]
+                else:
+                    print('invalid extension. jpg is available extension only')
+                    return
+            elif os.path.isdir(path):
+                image_paths = glob(f'{path}/*.jpg')
+            else:
+                print(f'invalid file format : [{path}]')
+                return
+        else:
+            assert dataset in ['train', 'validation']
+            if dataset == 'train':
+                image_paths = self.train_image_paths
+            elif dataset == 'validation':
+                image_paths = self.validation_image_paths
+        if len(image_paths) == 0:
+            print('no image found')
+            return
 
-    def predict_validation_images(self):
-        self.predict_images(self.validation_image_paths)
+        view_width, view_height = 0, 0
+        if width > 0 and height > 0:
+            view_width, view_height = width, height
+        else:
+            view_width, view_height = input_width, input_height
+        for path in image_paths:
+            print(f'image path : {path}')
+            img = cv2.imread(path, cv2.IMREAD_GRAYSCALE if input_channel == 1 else cv2.IMREAD_COLOR)
+            img, output_image = self.predict(img)
+            img = self.resize(img, (view_width, view_height))
+            output_image = self.resize(output_image, (view_width, view_height))
+            img = np.asarray(img).reshape(img.shape[:2] + (input_channel,))
+            cv2.imshow('ae', np.concatenate((img, output_image), axis=1))
+            key = cv2.waitKey(0)
+            if key == 27:
+                break
+
+    def predict_video(self, path, width=0, height=0):
+        if not path.startswith('rtsp://') and not (os.path.exists(path) and os.path.isfile(path)):
+            Util.print_error_exit(f'video not found. video path : {path}')
+        cap = cv2.VideoCapture(path)
+        input_height, input_width, input_channel = self.ae.input_shape[1:]
+        view_width, view_height = 0, 0
+        if width > 0 and height > 0:
+            view_width, view_height = width, height
+        else:
+            view_width, view_height = input_width, input_height
+        while True:
+            frame_exist, bgr = cap.read()
+            if not frame_exist:
+                print('frame not exists')
+                break
+            bgr_resized = self.resize(bgr, (view_width, view_height))
+            img = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY) if self.ae.input.shape[-1] == 1 else cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+            img, output_image = self.predict(img)
+            img = self.resize(img, (view_width, view_height))
+            output_image = self.resize(output_image, (view_width, view_height))
+            img = np.asarray(img).reshape(img.shape[:2] + (input_channel,))
+            cv2.imshow('video', np.concatenate((bgr_resized, output_image), axis=1))
+            key = cv2.waitKey(1)
+            if key == 27:
+                break
+        cap.release()
+        cv2.destroyAllWindows()
 
     def training_view_function(self):
         """
