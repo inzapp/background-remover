@@ -37,23 +37,25 @@ class TrainingConfig:
                  pretrained_model_path='',
                  train_image_path='',
                  validation_image_path='',
+                 background_type='black',
+                 model_name='model',
                  input_shape=(128, 128, 1),
                  lr=0.001,
                  warm_up=0.5,
                  batch_size=32,
                  iterations=100000,
-                 background_type='black',
                  denoise=False,
                  training_view=False):
         self.pretrained_model_path = pretrained_model_path
         self.train_image_path = train_image_path
         self.validation_image_path = validation_image_path
+        self.background_type = background_type
+        self.model_name = model_name
         self.input_shape = input_shape
         self.lr = lr
         self.warm_up = warm_up
         self.batch_size = batch_size
         self.iterations = iterations
-        self.background_type = background_type
         self.denoise = denoise
         self.training_view = training_view
 
@@ -185,7 +187,7 @@ class BackgroundRemover:
                     self.training_view_function()
                 if iteration_count % 5000 == 0:
                     loss = self.evaluate(generator=self.validation_data_generator_one_batch)
-                    self.model.save(self.checkpoint_path, iteration_count, loss)
+                    self.model.save(self.checkpoint_path, self.config.model_name, iteration_count, loss, verbose=True)
                     print(f'[{iteration_count} iter] val_loss : {loss:.4f}\n')
                 if iteration_count == self.config.iterations:
                     print('\n\ntrain end successfully')

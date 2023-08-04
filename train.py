@@ -27,6 +27,7 @@ if __name__ == '__main__':
         train_image_path=r'/train_data/coco/train',
         validation_image_path=r'/train_data/coco/validation',
         background_type='black',
+        model_name='model',
         input_shape=(128, 128, 1),
         lr=0.001,
         warm_up=0.5,

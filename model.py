@@ -27,6 +27,7 @@ os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 class Model:
     def __init__(self, input_shape, lr, input_layer_concat):
+        assert input_shape[-1] in [1, 3]
         self.input_shape = input_shape
         self.lr = lr
         self.ae = None
@@ -129,8 +130,11 @@ class Model:
             activation='sigmoid')(x)
         return tf.keras.layers.Flatten(name=name)(x)
 
-    def save(self, path, iteration_count, loss):
-        self.ae.save(f'{path}/model_{iteration_count}_iter_{loss:.4f}_loss.h5', include_optimizer=False)
+    def save(self, path, name, iteration_count, loss, verbose):
+        save_path = f'{path}/{name}_{iteration_count}_iter_{loss:.4f}_loss.h5'
+        self.ae.save(save_path, include_optimizer=False)
+        if verbose:
+            print(f'save success to {save_path}')
 
     def summary(self):
         self.ae.summary()
